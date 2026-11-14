@@ -34,6 +34,10 @@ node --env-file=.env server/psicologa.js   # AI server (Paze, explainer, space w
 
 `.env` (not in the repo) takes `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (Paze voice) and an optional `NASA_API_KEY`. Set `PSICOLOGA_PROVIDER=ollama` to run Paze's text chat on a local model.
 
+## AI use
+
+AI was used both to build XPaze and inside the product. The full declaration, covering tools, models, what the AI does and does not do, and our safety checks, is in **[AI_USE.md](AI_USE.md)** ([español](AI_USE.es.md)).
+
 ## Safety and privacy
 
 - XPaze does not diagnose. Colors come from fixed rules; the AI only explains them.
