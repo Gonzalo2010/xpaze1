@@ -35,11 +35,17 @@ export function createStage(canvas, { reduced = false } = {}) {
 
   const station = makeStation(renderer);
   scene.add(station.group);
-  station.setScreen({
+  const es = document.documentElement.lang === 'es';
+  station.setScreen(es ? {
     who: 'Día 58 · chequeo de la mañana',
     state: 'Estable',
     done: 'Chequeo completado',
     tiles: [['Pulso', '62', 'ppm'], ['Oxígeno', '98', '%'], ['Temperatura', '36,6', '°C'], ['Recuperación', 'Buena', '']],
+  } : {
+    who: 'Day 58 · morning check',
+    state: 'Stable',
+    done: 'Check complete',
+    tiles: [['Pulse', '62', 'bpm'], ['Oxygen', '98', '%'], ['Temperature', '36.6', '°C'], ['Recovery', 'Good', '']],
   });
 
   // objetivo (lo fija el scroll) y estado actual (se interpola)

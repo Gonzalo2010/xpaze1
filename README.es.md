@@ -1,6 +1,6 @@
 # XPaze — web v2
 
-Web nueva de XPaze, hecha desde cero. Clara, ordenada en 8 capítulos y con efectos ligados al scroll. Incluye la demo interactiva en `/demo/`.
+Web nueva de XPaze, hecha desde cero. Clara, ordenada en 8 capítulos y con efectos ligados al scroll. La demo es la app (`/app/`), en inglés por defecto y con opción de español; `/demo/` redirige a ella.
 
 ## Comandos
 
@@ -32,7 +32,7 @@ npm test          # 61 tests del motor de análisis y del módulo Mente
 - `src/main.js`: Lenis (scroll suave), GSAP ScrollTrigger y las interacciones.
 - `src/stage.js`: lienzo 3D fijo. `src/station.js`: modelo real y desmontaje.
 - `src/mars.js`: posición de Tierra y Marte a partir de sus elementos orbitales medios.
-- `demo/` y `src/demo/`: la demo (copiada de la v1, sin cambios salvo el aviso).
+- `demo/` y `src/demo/`: la demo antigua (v1). En xpaze.es `/demo/` redirige a `/app/`; la app reutiliza su tripulación y el motor de Mente.
 - `sensors/`: puente Python para los sensores reales en la Raspberry Pi.
 
 ## Notas

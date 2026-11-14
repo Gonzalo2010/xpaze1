@@ -3,7 +3,7 @@
 
 import './app.css';
 import { BleLink, SimLink, WifiLink, bluetoothAvailable, wifiAvailable } from './link.js';
-import { MEASURES, ENVIRONMENTS, PHQ2, PHQ2_ANSWERS, RED_FLAGS, classify, actionPlan, cabinLevel } from './clinical.js';
+import { MEASURES, ENVIRONMENTS, PHQ2, PHQ2_ANSWERS, RED_FLAGS, SELF_HARM, isSelfHarm, classify, actionPlan, cabinLevel } from './clinical.js';
 import { streamAI } from './ai.js';
 import { PazeOrb, bindOrbToVoice } from './paze-orb.js';
 import { assessSpace } from './space.js';
@@ -14,13 +14,17 @@ import psychStrings from '../demo/psych/strings.js';
 import { CMD } from './protocol.js';
 import { assess, summarize, MIN_PERSONAL } from './assess.js';
 import { CREW } from '../demo/core/engine/crew.js';
+import { L, t, lang, locale, setLang, langSwitch, wireLangSwitch } from './i18n.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
-const ROLE = { 'role.commander': 'Comandante', 'role.engineer': 'Ingeniería de vuelo', 'role.medical': 'Responsable médica', 'role.scientist': 'Ciencia' };
+const ROLE = {
+  es: { 'role.commander': 'Comandante', 'role.engineer': 'Ingeniería de vuelo', 'role.medical': 'Responsable médica', 'role.scientist': 'Ciencia' },
+  en: { 'role.commander': 'Commander', 'role.engineer': 'Flight engineer', 'role.medical': 'Medical officer', 'role.scientist': 'Science' },
+};
 const crewByUid = Object.fromEntries(CREW.map((c) => [c.uid.replace(/\s/g, ''), c]));
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fmt = (v, d = 0) => (v == null || !Number.isFinite(v) ? '—' : v.toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d }));
+const fmt = (v, d = 0) => (v == null || !Number.isFinite(v) ? '—' : v.toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d }));
 
 /* ------------------------------------------------------------ memoria -- */
 const KEY = 'xpaze-app-v1';
@@ -48,14 +52,14 @@ const S = {
 const WAVE_MAX = 150;  // 6 s a 25 muestras/s
 
 // Perfiles reales (no son tripulación ficticia): sus datos vienen del reloj vía XPaze Link.
-const REAL_PEOPLE = { GONZALO: { name: 'Gonzalo', role: 'Perfil real · Galaxy Watch', hue: 145 } };
+const REAL_PEOPLE = { GONZALO: { name: 'Gonzalo', get role() { return L('Perfil real · Galaxy Watch', 'Real profile · Galaxy Watch'); }, hue: 145 } };
 const PEOPLE = [...CREW.map((c) => ({ uid: c.uid.replace(/\s/g, ''), name: c.name })), ...Object.entries(REAL_PEOPLE).map(([uid, p]) => ({ uid, name: p.name }))];
 
 function personFromUid(uid) {
-  if (REAL_PEOPLE[uid]) return { uid, ...REAL_PEOPLE[uid], crew: null, real: true };
+  if (REAL_PEOPLE[uid]) return { uid, name: REAL_PEOPLE[uid].name, role: REAL_PEOPLE[uid].role, hue: REAL_PEOPLE[uid].hue, crew: null, real: true };
   const c = crewByUid[uid];
-  return c ? { uid, name: c.name, role: ROLE[c.roleKey] || '', crew: c.baseline, hue: c.hue }
-    : { uid, name: `Tarjeta ${uid}`, role: 'Sin ficha de tripulación', crew: null, hue: 200 };
+  return c ? { uid, name: c.name, role: ROLE[lang()][c.roleKey] || '', crew: c.baseline, hue: c.hue }
+    : { uid, name: L(`Tarjeta ${uid}`, `Card ${uid}`), role: L('Sin ficha de tripulación', 'No crew record'), crew: null, hue: 200 };
 }
 
 /* --------------------------------------------------------- navegación -- */
@@ -71,9 +75,9 @@ function go(screen) {
 }
 
 // Barra de pestañas a mano del pulgar en las pantallas principales.
-const TABS = [['home', 'Inicio', 'home'], ['check', 'Chequeo', 'pulse'], ['chat', 'Paze', 'paze'], ['history', 'Historial', 'chart']];
+const TABS = [['home', 'tab.home', 'home'], ['check', 'tab.check', 'pulse'], ['chat', 'tab.paze', 'paze'], ['history', 'tab.history', 'chart']];
 function tabbar() {
-  const nav = el(`<nav class="tabbar" aria-label="Secciones">${TABS.map(([k, t, ic]) => `<button data-tab="${k}" class="${S.screen === k || (k === 'home' && S.screen === 'live') ? 'is-on' : ''}" aria-current="${S.screen === k}">${icon(ic)}<span>${t}</span></button>`).join('')}</nav>`);
+  const nav = el(`<nav class="tabbar" aria-label="${L('Secciones', 'Sections')}">${TABS.map(([s, k, ic]) => `<button data-tab="${s}" class="${S.screen === s || (s === 'home' && S.screen === 'live') ? 'is-on' : ''}" aria-current="${S.screen === s}">${icon(ic)}<span>${t(k)}</span></button>`).join('')}</nav>`);
   nav.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => {
     const k = b.dataset.tab;
     if (k === S.screen) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
@@ -96,6 +100,13 @@ function render() {
   updateLive();
 }
 
+// Cambio de idioma: se rehace la pantalla actual con los textos nuevos.
+function relang() {
+  if (S.person) S.person = { ...S.person, ...personFromUid(S.person.uid), crew: S.person.crew };
+  if (S.chat) S.chat = null; // la conversación se reinicia en el idioma nuevo
+  render();
+}
+
 function el(html) {
   const t = document.createElement('template');
   t.innerHTML = html.trim();
@@ -107,31 +118,44 @@ function el(html) {
 // la física (Bluetooth o WiFi) queda como opción secundaria.
 function lastStatus(uid) {
   const h = (saved.history[uid] || []).at(-1);
-  if (!h) return '<span class="pc__st">Sin chequeos todavía</span>';
+  if (!h) return `<span class="pc__st">${L('Sin chequeos todavía', 'No check-ups yet')}</span>`;
   const lv = h.overall ?? ['normal', 'watch', 'alert'].indexOf(h.status);
-  const when = new Date(h.at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-  return `<span class="pc__st"><span class="dot dot--${LEVEL_CLS[lv] || 'off'}"></span>Último chequeo: ${when}</span>`;
+  const when = new Date(h.at).toLocaleDateString(locale(), { day: 'numeric', month: 'short' });
+  return `<span class="pc__st"><span class="dot dot--${LEVEL_CLS[lv] || 'off'}"></span>${L('Último chequeo', 'Last check-up')}: ${when}</span>`;
 }
 
 function welcome() {
   const node = el(`
     <section class="screen welcome">
-      <header class="brandbar"><img src="/logo-mark-dark.png" alt="" width="34" height="28"/><b>XPaze</b></header>
-      <h1>Hola. ¿Quién eres?</h1>
-      <p class="lead">Elige tu perfil y empieza. Nada que configurar.</p>
+      <header class="brandbar"><img src="/logo-mark-dark.png" alt="" width="34" height="28"/><b>XPaze</b>${langSwitch()}</header>
+      <h1>${L('Hola. ¿Quién eres?', 'Hi. Who are you?')}</h1>
+      <p class="lead">${L('Elige tu perfil y empieza. Nada que configurar.', 'Pick your profile and start. Nothing to set up.')}</p>
+      ${saved.onboarded ? '' : `<aside class="onboard" aria-label="${L('Cómo funciona', 'How it works')}">
+        <p class="onboard__t">${L('Cómo funciona', 'How it works')}</p>
+        <ol>
+          <li>${L('<b>Elige un perfil</b>: un tripulante de ficción o el tuyo.', '<b>Pick a profile</b>: a fictional crew member, or your own.')}</li>
+          <li>${L('<b>Hazte un chequeo de 2 minutos</b> o <b>habla con Paze</b>, la psicóloga IA de a bordo.', '<b>Do a 2-minute check-up</b> or <b>talk to Paze</b>, the on-board AI psychologist.')}</li>
+          <li>${L('<b>No necesitas nada más</b>: la estación se simula sola, sin hardware.', '<b>Nothing else needed</b>: the station is simulated, no hardware required.')}</li>
+        </ol>
+        <button type="button" class="onboard__ok" data-act="onboard-ok">${L('Entendido', 'Got it')}</button>
+      </aside>`}
       <div class="people">${PEOPLE.map((x) => {
         const p = personFromUid(x.uid);
         return `<button class="pc ${p.real ? 'pc--real' : ''}" data-uid="${x.uid}" style="--hue:${p.hue}">
           <span class="avatar">${esc(p.name.split(' ').map((w) => w[0]).join('').slice(0, 2))}</span>
           <span class="pc__txt"><b>${esc(p.name)}</b><small>${esc(p.role)}</small>${lastStatus(x.uid)}</span>
-          ${p.real ? '<span class="pc__tag">Tus datos reales</span>' : ''}
+          ${p.real ? `<span class="pc__tag">${L('Tus datos reales', 'Your real data')}</span>` : ''}
         </button>`;
       }).join('')}</div>
-      <button class="linkish welcome__hw" data-act="connect">${S.link && S.link.kind !== 'sim' ? `Conectado a ${esc(S.link.name)}` : 'Tengo la XPaze Station: conectar por Bluetooth o WiFi'}</button>
-      <p class="fine">Prototipo de investigación. No es un dispositivo médico.</p>
+      <button class="linkish welcome__hw" data-act="connect">${S.link && S.link.kind !== 'sim' ? `${L('Conectado a', 'Connected to')} ${esc(S.link.name)}` : L('Tengo la XPaze Station: conectar por Bluetooth o WiFi', 'I have the XPaze Station: connect via Bluetooth or WiFi')}</button>
+      <p class="fine">${L('Prototipo de investigación. No es un dispositivo médico.', 'Research prototype. Not a medical device.')}</p>
     </section>`);
-  node.querySelectorAll('[data-uid]').forEach((b) => b.addEventListener('click', () => enter(b.dataset.uid)));
+  const onboarded = () => { if (!saved.onboarded) { saved.onboarded = true; store.save(saved); } };
+  node.querySelectorAll('[data-uid]').forEach((b) => b.addEventListener('click', () => { onboarded(); enter(b.dataset.uid); }));
   node.querySelector('[data-act="connect"]').onclick = () => go('choose');
+  const ok = node.querySelector('[data-act="onboard-ok"]');
+  if (ok) ok.onclick = () => { onboarded(); ok.closest('.onboard').remove(); };
+  wireLangSwitch(node, relang);
   return node;
 }
 
@@ -156,7 +180,7 @@ function home() {
   const sleep = h?.sleep?.hours ?? last?.mind?.sleep ?? null;
   const sp = spaceNow();
   const hour = new Date().getHours();
-  const hi = hour < 6 ? 'Buenas noches' : hour < 14 ? 'Buenos días' : hour < 21 ? 'Buenas tardes' : 'Buenas noches';
+  const hi = hour < 6 ? L('Buenas noches', 'Good evening') : hour < 12 ? L('Buenos días', 'Good morning') : hour < 14 ? L('Buenos días', 'Good afternoon') : hour < 21 ? L('Buenas tardes', 'Good afternoon') : L('Buenas noches', 'Good evening');
   const node = el(`
     <section class="screen homev">
       ${topbar()}
@@ -166,27 +190,27 @@ function home() {
       </div>
 
       <div class="glance">
-        <div class="g"><small>Último chequeo</small><b>${last ? `<span class="dot dot--${LEVEL_CLS[lv]}"></span>${['Bien', 'A vigilar', 'Actúa'][lv]}` : '—'}</b><em>${last ? new Date(last.at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : 'aún ninguno'}</em></div>
-        <div class="g"><small>Sueño</small><b>${sleep != null ? `${fmt(sleep, 1)} h` : '—'}</b><em>${h?.sleep ? 'de tu reloj' : last?.mind ? 'del chequeo' : 'sin dato'}</em></div>
-        <div class="g"><small>Clima espacial</small><b>${sp ? `<span class="dot dot--${LEVEL_CLS[sp.level]}"></span>${['Tranquilo', 'Vigilancia', 'Alerta'][sp.level]}` : '…'}</b><em>en directo</em></div>
+        <div class="g"><small>${L('Último chequeo', 'Last check-up')}</small><b>${last ? `<span class="dot dot--${LEVEL_CLS[lv]}"></span>${L(['Bien', 'A vigilar', 'Actúa'], ['Good', 'Watch', 'Act'])[lv]}` : '—'}</b><em>${last ? new Date(last.at).toLocaleDateString(locale(), { day: 'numeric', month: 'short' }) : L('aún ninguno', 'none yet')}</em></div>
+        <div class="g"><small>${L('Sueño', 'Sleep')}</small><b>${sleep != null ? `${fmt(sleep, 1)} h` : '—'}</b><em>${h?.sleep ? L('de tu reloj', 'from your watch') : last?.mind ? L('del chequeo', 'from check-up') : L('sin dato', 'no data')}</em></div>
+        <div class="g"><small>${L('Clima espacial', 'Space weather')}</small><b>${sp ? `<span class="dot dot--${LEVEL_CLS[sp.level]}"></span>${L(['Tranquilo', 'Vigilancia', 'Alerta'], ['Quiet', 'Watch', 'Alert'])[sp.level]}` : '…'}</b><em>${L('en directo', 'live')}</em></div>
       </div>
 
       <button class="big big--check" data-act="check">
         <span class="big__ico">${icon('pulse')}</span>
-        <span><b>Hacerme un chequeo</b><small>2 minutos · te guía paso a paso</small></span>
+        <span><b>${L('Hacerme un chequeo', 'Do a check-up')}</b><small>${L('2 minutos · te guía paso a paso', '2 minutes · step-by-step guidance')}</small></span>
       </button>
       <button class="big big--paze" data-act="psy">
         <span class="big__orb"></span>
-        <span><b>Hablar con Paze</b><small>Tu psicóloga de a bordo · por voz o por texto</small></span>
+        <span><b>${L('Hablar con Paze', 'Talk to Paze')}</b><small>${L('Tu psicóloga de a bordo · por voz o por texto', 'Your on-board psychologist · by voice or text')}</small></span>
       </button>
 
       <div class="minor">
-        <button class="mini" data-act="datos">${icon('sim')}<span>Mis datos en directo</span></button>
-        <button class="mini" data-act="history">${icon('chart')}<span>Historial</span></button>
+        <button class="mini" data-act="datos">${icon('sim')}<span>${L('Mis datos en directo', 'My live data')}</span></button>
+        <button class="mini" data-act="history">${icon('chart')}<span>${t('tab.history')}</span></button>
       </div>
 
-      <div class="envsel"><span>¿Dónde estás?</span><div class="seg seg--wrap">${Object.entries(ENVIRONMENTS).map(([k, e]) => `<button data-env="${k}" class="${k === envKey() ? 'is-on' : ''}">${e.short}</button>`).join('')}</div></div>
-      <button class="linkish" data-act="switch">No soy ${esc(first)}: cambiar de persona</button>
+      <div class="envsel"><span>${L('¿Dónde estás?', 'Where are you?')}</span><div class="seg seg--wrap">${Object.entries(ENVIRONMENTS).map(([k, e]) => `<button data-env="${k}" class="${k === envKey() ? 'is-on' : ''}">${e.short}</button>`).join('')}</div></div>
+      <button class="linkish" data-act="switch">${L(`No soy ${esc(first)}: cambiar de persona`, `Not ${esc(first)}? Switch person`)}</button>
     </section>`);
   wire(node);
   node.querySelector('[data-act="datos"]').onclick = () => go('live');
@@ -209,26 +233,26 @@ function choose() {
   const node = el(`
     <section class="screen choose">
       <header class="brandbar"><img src="/logo-mark-dark.png" alt="" width="34" height="28"/><b>XPaze</b></header>
-      <h1>Conectar la estación</h1>
-      <p class="lead">Si tienes la XPaze Station encendida, conéctala por Bluetooth o por WiFi. Si no, usa la simulada.</p>
+      <h1>${L('Conectar la estación', 'Connect the station')}</h1>
+      <p class="lead">${L('Si tienes la XPaze Station encendida, conéctala por Bluetooth o por WiFi. Si no, usa la simulada.', 'If your XPaze Station is on, connect it via Bluetooth or WiFi. If not, use the simulated one.')}</p>
       <div class="options">
         <button class="option" data-act="ble" ${ble && secure ? '' : 'disabled'}>
           <span class="option__icon">${icon('bt')}</span>
-          <span><b>Estación física</b><small>Conectar por Bluetooth con la XPaze Station</small></span>
+          <span><b>${L('Estación física', 'Physical station')}</b><small>${L('Conectar por Bluetooth con la XPaze Station', 'Connect to the XPaze Station via Bluetooth')}</small></span>
         </button>
         <div class="remembered" hidden></div>
         <button class="option" data-act="wifi" ${wifiAvailable() ? '' : 'hidden'}>
           <span class="option__icon option__icon--wifi">${icon('wifi')}</span>
-          <span><b>Estación por WiFi</b><small>Conectado a la red de la Raspberry Pi, sin Internet</small></span>
+          <span><b>${L('Estación por WiFi', 'Station over WiFi')}</b><small>${L('Conectado a la red de la Raspberry Pi, sin Internet', 'On the Raspberry Pi network, no Internet needed')}</small></span>
         </button>
         <button class="option" data-act="sim">
           <span class="option__icon option__icon--sim">${icon('sim')}</span>
-          <span><b>Estación simulada</b><small>Sin hardware. Tú controlas la tarjeta, el dedo y el reloj</small></span>
+          <span><b>${L('Estación simulada', 'Simulated station')}</b><small>${L('Sin hardware. Tú controlas la tarjeta, el dedo y el reloj', 'No hardware. You control the card, the finger and the watch')}</small></span>
         </button>
       </div>
-      ${!secure ? '<p class="note">Bluetooth necesita una conexión segura (https). Abre la app desde su dirección https.</p>'
-        : !ble ? '<p class="note">Este navegador no tiene Web Bluetooth. Usa Chrome en Android o en un ordenador. En iPhone, solo la estación simulada.</p>' : ''}
-      <p class="fine">Prototipo de investigación. No es un dispositivo médico.</p>
+      ${!secure ? `<p class="note">${L('Bluetooth necesita una conexión segura (https). Abre la app desde su dirección https.', 'Bluetooth needs a secure connection (https). Open the app from its https address.')}</p>`
+        : !ble ? `<p class="note">${L('Este navegador no tiene Web Bluetooth. Usa Chrome en Android o en un ordenador. En iPhone, solo la estación simulada.', 'This browser does not support Web Bluetooth. Use Chrome on Android or on a computer. On iPhone, only the simulated station works.')}</p>` : ''}
+      <p class="fine">${L('Prototipo de investigación. No es un dispositivo médico.', 'Research prototype. Not a medical device.')}</p>
     </section>`);
   node.querySelector('[data-act="ble"]').onclick = () => startBle();
   node.querySelector('[data-act="sim"]').onclick = () => startSim();
@@ -238,7 +262,7 @@ function choose() {
       if (!dev) return;
       const box = node.querySelector('.remembered');
       box.hidden = false;
-      box.append(el(`<button class="chip-btn">Reconectar con ${esc(dev.name || 'XPaze Station')}</button>`));
+      box.append(el(`<button class="chip-btn">${L('Reconectar con', 'Reconnect to')} ${esc(dev.name || 'XPaze Station')}</button>`));
       box.firstChild.onclick = () => startBle(dev);
     });
   }
@@ -292,11 +316,11 @@ function connecting() {
   S.linkError = null;
   const node = el(`
     <section class="screen center">
-      ${err ? `<div class="big-icon err">${icon('x')}</div><h2>No se pudo conectar</h2>
+      ${err ? `<div class="big-icon err">${icon('x')}</div><h2>${L('No se pudo conectar', 'Could not connect')}</h2>
         <p class="lead">${esc(err)}</p>
-        <ul class="tips"><li>Comprueba que la Raspberry está encendida y cerca.</li><li>Activa el Bluetooth y la ubicación del móvil.</li><li>Si la estación estaba conectada a otro móvil, desconéctalo.</li></ul>
-        <button class="btn btn--dark" data-act="back">Volver</button>`
-      : `<div class="spinner"></div><h2>Conectando…</h2><p class="lead">${S.link?.kind === 'sim' ? 'Preparando la estación simulada.' : 'Elige «XPaze Station» en la lista de dispositivos.'}</p>`}
+        <ul class="tips">${L(['Comprueba que la Raspberry está encendida y cerca.', 'Activa el Bluetooth y la ubicación del móvil.', 'Si la estación estaba conectada a otro móvil, desconéctalo.'], ['Check that the Raspberry Pi is on and nearby.', 'Turn on Bluetooth and location on your phone.', 'If the station was connected to another phone, disconnect it.']).map((x) => `<li>${x}</li>`).join('')}</ul>
+        <button class="btn btn--dark" data-act="back">${L('Volver', 'Back')}</button>`
+      : `<div class="spinner"></div><h2>${L('Conectando…', 'Connecting…')}</h2><p class="lead">${S.link?.kind === 'sim' ? L('Preparando la estación simulada.', 'Preparing the simulated station.') : L('Elige «XPaze Station» en la lista de dispositivos.', 'Choose “XPaze Station” in the device list.')}</p>`}
     </section>`);
   node.querySelector('[data-act="back"]')?.addEventListener('click', () => go('welcome'));
   return node;
@@ -308,8 +332,9 @@ function topbar() {
     <header class="topbar">
       <img src="/logo-mark-dark.png" alt="" width="28" height="23"/>
       <span class="link-chip" data-live="chip">—</span>
-      <span class="test-badge" data-live="test" hidden>Datos de prueba</span>
-      <button class="icon-btn" data-act="menu" aria-label="${S.screen === 'home' ? 'Cambiar de persona' : 'Volver al inicio'}">${icon(S.screen === 'home' ? 'swap' : 'home')}</button>
+      <span class="test-badge" data-live="test" hidden>${L('Datos de prueba', 'Test data')}</span>
+      ${langSwitch()}
+      <button class="icon-btn" data-act="menu" aria-label="${S.screen === 'home' ? L('Cambiar de persona', 'Switch person') : L('Volver al inicio', 'Back to home')}">${icon(S.screen === 'home' ? 'swap' : 'home')}</button>
     </header>`;
 }
 
@@ -318,52 +343,52 @@ function live() {
   const node = el(`
     <section class="screen live">
       ${topbar()}
-      <button class="linkish back" data-act="home">← Volver al inicio</button>
-      <h2 class="screen-t">Mis datos en directo</h2>
+      <button class="linkish back" data-act="home">← ${L('Volver al inicio', 'Back to home')}</button>
+      <h2 class="screen-t">${L('Mis datos en directo', 'My live data')}</h2>
       <div class="person ${p ? '' : 'is-empty'}" style="--hue:${p?.hue ?? 200}">
         ${p ? `<div class="avatar">${esc(p.name.split(' ').map((w) => w[0]).join('').slice(0, 2))}</div>
           <div><b>${esc(p.name)}</b><small>${esc(p.role)}</small></div>
-          <button class="chip-btn" data-act="history">Historial</button>`
-        : `<div class="avatar avatar--card">${icon('card')}</div><div><b>Acerca tu tarjeta al lector</b><small>O elige quién eres</small></div>
-          <select class="who" aria-label="Elegir astronauta"><option value="">Elegir…</option>${PEOPLE.map((c) => `<option value="${c.uid}">${esc(c.name)}</option>`).join('')}</select>`}
+          <button class="chip-btn" data-act="history">${t('tab.history')}</button>`
+        : `<div class="avatar avatar--card">${icon('card')}</div><div><b>${L('Acerca tu tarjeta al lector', 'Tap your card on the reader')}</b><small>${L('O elige quién eres', 'Or choose who you are')}</small></div>
+          <select class="who" aria-label="${L('Elegir astronauta', 'Choose astronaut')}"><option value="">${L('Elegir…', 'Choose…')}</option>${PEOPLE.map((c) => `<option value="${c.uid}">${esc(c.name)}</option>`).join('')}</select>`}
       </div>
 
       <div class="wavebox">
-        <div class="wavebox__head"><span>Onda de pulso</span><span data-live="quality">—</span></div>
+        <div class="wavebox__head"><span>${L('Onda de pulso', 'Pulse wave')}</span><span data-live="quality">—</span></div>
         <canvas class="wave" data-live="wave" aria-hidden="true"></canvas>
       </div>
 
       <div class="tiles">
-        <div class="tile tile--hr"><small>Pulso</small><b data-live="bpm">—</b><em>lpm</em></div>
-        <div class="tile"><small>Oxígeno estimado</small><b data-live="spo2">—</b><em>%</em></div>
+        <div class="tile tile--hr"><small>${L('Pulso', 'Heart rate')}</small><b data-live="bpm">—</b><em>${L('lpm', 'bpm')}</em></div>
+        <div class="tile"><small>${L('Oxígeno estimado', 'Estimated oxygen')}</small><b data-live="spo2">—</b><em>%</em></div>
       </div>
 
-      <div class="envsel"><span>Entorno</span><div class="seg seg--wrap">${Object.entries(ENVIRONMENTS).map(([k, e]) => `<button data-env="${k}" class="${k === envKey() ? 'is-on' : ''}">${e.short}</button>`).join('')}</div></div>
-      <button class="btn btn--dark btn--block" data-act="check" ${p ? '' : 'disabled'}>Empezar chequeo guiado</button>
-      ${p ? '<button class="btn btn--line btn--block" data-act="psy">Hablar con la psicóloga (IA)</button>' : ''}
-      ${p ? '' : '<p class="hint">Identifícate para empezar un chequeo.</p>'}
+      <div class="envsel"><span>${L('Entorno', 'Environment')}</span><div class="seg seg--wrap">${Object.entries(ENVIRONMENTS).map(([k, e]) => `<button data-env="${k}" class="${k === envKey() ? 'is-on' : ''}">${e.short}</button>`).join('')}</div></div>
+      <button class="btn btn--dark btn--block" data-act="check" ${p ? '' : 'disabled'}>${L('Empezar chequeo guiado', 'Start guided check-up')}</button>
+      ${p ? `<button class="btn btn--line btn--block" data-act="psy">${L('Hablar con la psicóloga (IA)', 'Talk to the psychologist (AI)')}</button>` : ''}
+      ${p ? '' : `<p class="hint">${L('Identifícate para empezar un chequeo.', 'Identify yourself to start a check-up.')}</p>`}
 
-      <h3 class="section-t">Cabina</h3>
+      <h3 class="section-t">${L('Cabina', 'Cabin')}</h3>
       <div class="tiles tiles--3">
-        <div class="tile tile--sm"><small>Temperatura</small><b data-live="temp">—</b><em>°C</em></div>
-        <div class="tile tile--sm"><small>Humedad</small><b data-live="hum">—</b><em>%</em></div>
-        <div class="tile tile--sm"><small>Presión</small><b data-live="press">—</b><em>hPa</em></div>
+        <div class="tile tile--sm"><small>${L('Temperatura', 'Temperature')}</small><b data-live="temp">—</b><em>°C</em></div>
+        <div class="tile tile--sm"><small>${L('Humedad', 'Humidity')}</small><b data-live="hum">—</b><em>%</em></div>
+        <div class="tile tile--sm"><small>${L('Presión', 'Pressure')}</small><b data-live="press">—</b><em>hPa</em></div>
       </div>
-      <p class="fine" data-live="cabin">Límites de cabina según el estándar NASA-STD-3001.</p>
+      <p class="fine" data-live="cabin">${L('Límites de cabina según el estándar NASA-STD-3001.', 'Cabin limits per the NASA-STD-3001 standard.')}</p>
 
-      <h3 class="section-t">Clima espacial · DONKI (NASA)</h3>
+      <h3 class="section-t">${L('Clima espacial', 'Space weather')} · DONKI (NASA)</h3>
       <div class="spacebox" data-live="space">${spaceBox()}</div>
 
-      <h3 class="section-t">Reloj · Samsung Health</h3>
+      <h3 class="section-t">${L('Reloj', 'Watch')} · Samsung Health</h3>
       <div class="shealth" data-live="shealth">${healthBox()}</div>
-      <h3 class="section-t">Reloj · en directo</h3>
+      <h3 class="section-t">${L('Reloj · en directo', 'Watch · live')}</h3>
       <div class="watch" data-live="watchbox">
         <div class="tiles tiles--3">
-          <div class="tile tile--sm"><small>Pulso</small><b data-live="wbpm">—</b><em>lpm</em></div>
-          <div class="tile tile--sm"><small>Piel</small><b data-live="wskin">—</b><em>°C</em></div>
+          <div class="tile tile--sm"><small>${L('Pulso', 'Heart rate')}</small><b data-live="wbpm">—</b><em>${L('lpm', 'bpm')}</em></div>
+          <div class="tile tile--sm"><small>${L('Piel', 'Skin')}</small><b data-live="wskin">—</b><em>°C</em></div>
           <div class="tile tile--sm"><small>SpO₂</small><b data-live="wspo2">—</b><em>%</em></div>
         </div>
-        <div class="watch__foot"><span data-live="wstate">—</span><button class="chip-btn" data-act="wspo2">Medir SpO₂ (30 s)</button></div>
+        <div class="watch__foot"><span data-live="wstate">—</span><button class="chip-btn" data-act="wspo2">${L('Medir SpO₂ (30 s)', 'Measure SpO₂ (30 s)')}</button></div>
       </div>
 
       <div class="sensors" data-live="sensors"></div>
@@ -377,17 +402,17 @@ function live() {
 function simPanel() {
   return `
     <details class="sim" open>
-      <summary>Controles de la estación simulada</summary>
-      <div class="sim__row"><span>Tarjeta</span>
+      <summary>${L('Controles de la estación simulada', 'Simulated station controls')}</summary>
+      <div class="sim__row"><span>${L('Tarjeta', 'Card')}</span>
         <div class="seg">${PEOPLE.map((c) => `<button data-sim-card="${c.uid}">${esc(c.name.split(' ')[0])}</button>`).join('')}</div></div>
-      <div class="sim__row"><span>Dedo en el sensor</span><button class="switch" data-sim="finger" aria-pressed="false"><i></i></button></div>
-      <div class="sim__row"><span>Reloj conectado</span><button class="switch" data-sim="watch" aria-pressed="true"><i></i></button></div>
-      <div class="sim__row"><span>Situación</span>
+      <div class="sim__row"><span>${L('Dedo en el sensor', 'Finger on sensor')}</span><button class="switch" data-sim="finger" aria-pressed="false" aria-label="${L('Dedo en el sensor', 'Finger on sensor')}"><i></i></button></div>
+      <div class="sim__row"><span>${L('Reloj conectado', 'Watch connected')}</span><button class="switch" data-sim="watch" aria-pressed="true" aria-label="${L('Reloj conectado', 'Watch connected')}"><i></i></button></div>
+      <div class="sim__row"><span>${L('Situación', 'Scenario')}</span>
         <div class="seg seg--wrap">
-          <button data-sim-prof="rest" class="is-on">Reposo</button>
-          <button data-sim-prof="exercise">Tras entrenar</button>
-          <button data-sim-prof="fever">Fiebre</button>
-          <button data-sim-prof="lowo2">Oxígeno bajo</button>
+          <button data-sim-prof="rest" class="is-on">${L('Reposo', 'Resting')}</button>
+          <button data-sim-prof="exercise">${L('Tras entrenar', 'After exercise')}</button>
+          <button data-sim-prof="fever">${L('Fiebre', 'Fever')}</button>
+          <button data-sim-prof="lowo2">${L('Oxígeno bajo', 'Low oxygen')}</button>
         </div></div>
     </details>`;
 }
@@ -401,6 +426,7 @@ const PROFILES = {
 
 function wire(node) {
   node.querySelector('[data-act="menu"]')?.addEventListener('click', () => go(S.screen === 'home' ? 'welcome' : 'home'));
+  wireLangSwitch(node, relang);
   node.querySelector('[data-act="check"]')?.addEventListener('click', startCheck);
   node.querySelector('[data-act="history"]')?.addEventListener('click', () => go('history'));
   if (node.querySelector('[data-live="space"]')) loadSpace();
@@ -410,14 +436,14 @@ function wire(node) {
   node.querySelectorAll('[data-env]').forEach((b) => b.addEventListener('click', () => {
     saved.env = b.dataset.env; store.save(saved);
     node.querySelectorAll('[data-env]').forEach((x) => x.classList.toggle('is-on', x === b));
-    toast(`Entorno: ${ENVIRONMENTS[saved.env].name}. Comunicación con Tierra: ${ENVIRONMENTS[saved.env].delay}.`);
+    toast(L(`Entorno: ${ENVIRONMENTS[saved.env].name}. Comunicación con Tierra: ${ENVIRONMENTS[saved.env].delay}.`, `Environment: ${ENVIRONMENTS[saved.env].name}. Communication with Earth: ${ENVIRONMENTS[saved.env].delay}.`));
     const sb = node.querySelector('[data-live="space"]'); if (sb) sb.innerHTML = spaceBox();
   }));
   node.querySelector('.who')?.addEventListener('change', (e) => { if (e.target.value) identify(e.target.value); });
   node.querySelector('[data-act="wspo2"]')?.addEventListener('click', async (e) => {
     e.target.disabled = true;
     const ok = await S.link?.send(CMD.watchSpo2);
-    toast(ok ? 'Midiendo SpO₂ en el reloj. No muevas la muñeca 30 s.' : 'El reloj no responde.');
+    toast(ok ? L('Midiendo SpO₂ en el reloj. No muevas la muñeca 30 s.', 'Measuring SpO₂ on the watch. Keep your wrist still for 30 s.') : L('El reloj no responde.', 'The watch is not responding.'));
   });
   // simulación
   // los perfiles reales no tienen tarjeta RFID (su UID no es hexadecimal): se identifican directamente
@@ -443,7 +469,7 @@ function identify(uid, { quiet = false } = {}) {
   if (S.link?.kind === 'sim') S.link.setProfile(PROFILES.rest());
   if (changed) {
     vibrate(40);
-    if (!quiet) toast(`Hola, ${S.person.name.split(' ')[0]}.`);
+    if (!quiet) toast(`${L('Hola', 'Hi')}, ${S.person.name.split(' ')[0]}.`);
     if (['live', 'home'].includes(S.screen)) render();
   }
 }
@@ -452,7 +478,7 @@ function identify(uid, { quiet = false } = {}) {
 function onEvent({ type, data }) {
   if (type === 'link') {
     S.linkState = data.state;
-    if (data.state === 'disconnected' && !['choose', 'welcome'].includes(S.screen)) { S.link = null; toast('Estación desconectada.'); go(S.person ? 'home' : 'welcome'); return; }
+    if (data.state === 'disconnected' && !['choose', 'welcome'].includes(S.screen)) { S.link = null; toast(L('Estación desconectada.', 'Station disconnected.')); go(S.person ? 'home' : 'welcome'); return; }
   } else if (type === 'vitals') {
     S.vitals = data;
     if (S.check && STEPS[S.check.step] === 'hr' && !S.check.manual) S.check.samples.push({
@@ -475,10 +501,17 @@ function onEvent({ type, data }) {
   updateLive();
 }
 
-const QUALITY_TEXT = {
-  'no-data': 'Sin señal del sensor', 'no-finger': 'Pon el dedo en el sensor', collecting: 'Midiendo… no te muevas',
-  weak: 'Señal débil: apoya mejor el dedo', noisy: 'Hay movimiento: quédate quieto', good: 'Señal buena',
+const QUALITY = {
+  es: {
+    'no-data': 'Sin señal del sensor', 'no-finger': 'Pon el dedo en el sensor', collecting: 'Midiendo… no te muevas',
+    weak: 'Señal débil: apoya mejor el dedo', noisy: 'Hay movimiento: quédate quieto', good: 'Señal buena',
+  },
+  en: {
+    'no-data': 'No signal from the sensor', 'no-finger': 'Place your finger on the sensor', collecting: 'Measuring… keep still',
+    weak: 'Weak signal: rest your finger better', noisy: 'Movement detected: keep still', good: 'Good signal',
+  },
 };
+const QUALITY_TEXT = new Proxy({}, { get: (_, k) => QUALITY[lang()][k] });
 
 function setText(key, text) { const n = app.querySelector(`[data-live="${key}"]`); if (n && n.textContent !== text) n.textContent = text; }
 
@@ -486,16 +519,16 @@ function updateLive() {
   const v = S.vitals; const w = S.watch; const st = S.status;
   const chip = app.querySelector('[data-live="chip"]');
   if (chip) {
-    const map = { connected: ['Conectado', 'ok'], connecting: ['Conectando…', 'warn'], reconnecting: ['Reconectando…', 'warn'], disconnected: ['Desconectado', 'err'], idle: ['—', ''] };
+    const map = { connected: [L('Conectado', 'Connected'), 'ok'], connecting: [L('Conectando…', 'Connecting…'), 'warn'], reconnecting: [L('Reconectando…', 'Reconnecting…'), 'warn'], disconnected: [L('Desconectado', 'Disconnected'), 'err'], idle: ['—', ''] };
     const [txt, cls] = map[S.linkState] || map.idle;
-    chip.textContent = `${S.link?.kind === 'sim' ? 'Simulada' : S.link?.name || 'Estación'} · ${txt}`;
+    chip.textContent = `${S.link?.kind === 'sim' ? L('Simulada', 'Simulated') : S.link?.name || L('Estación', 'Station')} · ${txt}`;
     chip.className = `link-chip ${cls}`;
   }
   const test = app.querySelector('[data-live="test"]');
   if (test) test.hidden = !(st?.test && S.link?.kind === 'ble');
   setText('bpm', v?.bpm ? String(v.bpm) : '—');
   setText('spo2', v?.spo2 ? String(v.spo2) : '—');
-  setText('quality', v ? QUALITY_TEXT[v.quality] || '' : 'Esperando datos…');
+  setText('quality', v ? QUALITY_TEXT[v.quality] || '' : L('Esperando datos…', 'Waiting for data…'));
   app.querySelector('.tile--hr')?.classList.toggle('is-good', v?.quality === 'good');
   setText('temp', fmt(v?.temperature, 1));
   setText('hum', fmt(v?.humidity, 0));
@@ -503,19 +536,20 @@ function updateLive() {
   const cab = v ? cabinLevel(v) : null;
   const cabEl = app.querySelector('[data-live="cabin"]');
   if (cabEl && cab != null) {
-    const t = ['Aire de cabina dentro de los límites de NASA-STD-3001.', 'Aire de cabina fuera del rango de confort (NASA-STD-3001 V2 6013).', 'Aire de cabina fuera de los límites de salud (NASA-STD-3001 V2 6012): avisa a la tripulación.'][cab];
-    if (cabEl.textContent !== t) { cabEl.textContent = t; cabEl.className = `fine cab-${['ok', 'warn', 'err'][cab]}`; }
+    const msg = L(['Aire de cabina dentro de los límites de NASA-STD-3001.', 'Aire de cabina fuera del rango de confort (NASA-STD-3001 V2 6013).', 'Aire de cabina fuera de los límites de salud (NASA-STD-3001 V2 6012): avisa a la tripulación.'],
+      ['Cabin air within NASA-STD-3001 limits.', 'Cabin air outside the comfort range (NASA-STD-3001 V2 6013).', 'Cabin air outside the health limits (NASA-STD-3001 V2 6012): alert the crew.'])[cab];
+    if (cabEl.textContent !== msg) { cabEl.textContent = msg; cabEl.className = `fine cab-${['ok', 'warn', 'err'][cab]}`; }
   }
   setText('wbpm', w?.bpm ? String(w.bpm) : '—');
   setText('wskin', fmt(w?.skin, 1));
   setText('wspo2', w?.spo2 ? String(w.spo2) : '—');
-  setText('wstate', !w ? 'Reloj no conectado' : w.spo2Measuring ? 'Midiendo SpO₂… no muevas la muñeca' : `Conectado${w.battery != null ? ` · batería ${w.battery} %` : ''}`);
+  setText('wstate', !w ? L('Reloj no conectado', 'Watch not connected') : w.spo2Measuring ? L('Midiendo SpO₂… no muevas la muñeca', 'Measuring SpO₂… keep your wrist still') : `${L('Conectado', 'Connected')}${w.battery != null ? ` · ${L('batería', 'battery')} ${w.battery} %` : ''}`);
   const wbtn = app.querySelector('[data-act="wspo2"]');
   if (wbtn) wbtn.disabled = !w || w.spo2Measuring;
   app.querySelector('[data-live="watchbox"]')?.classList.toggle('is-off', !w);
   const sens = app.querySelector('[data-live="sensors"]');
   if (sens && st) {
-    const items = [['Arduino', st.arduino], ['Tarjetas', st.rfid], ['Pulso', st.ppg], ['Temp./humedad', st.aht], ['Presión', st.bmp], ['Reloj', st.watch]];
+    const items = [['Arduino', st.arduino], [L('Tarjetas', 'Cards'), st.rfid], [L('Pulso', 'Pulse'), st.ppg], [L('Temp./humedad', 'Temp./humidity'), st.aht], [L('Presión', 'Pressure'), st.bmp], [L('Reloj', 'Watch'), st.watch]];
     const html = items.map(([n, ok]) => `<span class="${ok ? 'ok' : 'off'}">${n}</span>`).join('');
     if (sens.innerHTML !== html) sens.innerHTML = html;
   }
@@ -563,7 +597,11 @@ const CHECK_S = 30;
 const CHECK_MAX_S = 60;
 const CHECK_GOOD = 15;
 const STEPS = ['hr', 'bp', 'glucose', 'mind', 'flags'];
-const STEP_TITLE = { hr: 'Pulso y oxígeno', bp: 'Tensión arterial', glucose: 'Glucosa', mind: 'Ánimo y sueño', flags: 'Señales de alarma' };
+const STEP_TITLES = {
+  es: { hr: 'Pulso y oxígeno', bp: 'Tensión arterial', glucose: 'Glucosa', mind: 'Ánimo y sueño', flags: 'Señales de alarma' },
+  en: { hr: 'Heart rate and oxygen', bp: 'Blood pressure', glucose: 'Glucose', mind: 'Mood and sleep', flags: 'Warning signs' },
+};
+const STEP_TITLE = new Proxy({}, { get: (_, k) => STEP_TITLES[lang()][k] });
 const envKey = () => (ENVIRONMENTS[saved.env] ? saved.env : 'transit');
 
 async function startCheck() {
@@ -578,10 +616,10 @@ function stepIntro(id) {
   const m = MEASURES[id === 'hr' ? 'hr' : id];
   const i = STEPS.indexOf(id);
   return `
-    <p class="kicker">Paso ${i + 1} de ${STEPS.length} · ${esc(S.person.name)}</p>
+    <p class="kicker">${L(`Paso ${i + 1} de ${STEPS.length}`, `Step ${i + 1} of ${STEPS.length}`)} · ${esc(S.person.name)}</p>
     <div class="dots">${STEPS.map((_, k) => `<i class="${k < i ? 'done' : k === i ? 'now' : ''}"></i>`).join('')}</div>
     <h2>${STEP_TITLE[id]}</h2>
-    ${m ? `<details class="why"><summary>¿Por qué se mide?</summary><p>${esc(m.why)}</p>
+    ${m ? `<details class="why"><summary>${L('¿Por qué se mide?', 'Why measure this?')}</summary><p>${esc(m.why)}</p>
       ${id === 'hr' ? `<p>${esc(MEASURES.spo2.why)}</p>` : ''}</details>
       <ol class="howto">${m.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}`;
 }
@@ -591,7 +629,7 @@ function check() {
   const id = STEPS[c.step];
   const views = { hr: stepHr, bp: stepBp, glucose: stepGlucose, mind: stepMind, flags: stepFlags };
   const node = views[id]();
-  node.querySelector('[data-act="cancel"]')?.addEventListener('click', () => { if (confirm('¿Cancelar el chequeo? No se guardará.')) { endCheck(); go('home'); } });
+  node.querySelector('[data-act="cancel"]')?.addEventListener('click', () => { if (confirm(L('¿Cancelar el chequeo? No se guardará.', 'Cancel the check-up? It will not be saved.'))) { endCheck(); go('home'); } });
   node.querySelector('[data-act="menu"]').onclick = () => {};
   return node;
 }
@@ -603,12 +641,12 @@ function nextStep() {
   else go('check');
 }
 
-const footer = (skip = true, label = 'Siguiente') => `
+const footer = (skip = true, label = L('Siguiente', 'Next')) => `
   <div class="row">
-    ${skip ? '<button class="btn btn--line" data-act="skip">Omitir</button>' : '<button class="btn btn--line" data-act="cancel">Cancelar</button>'}
+    ${skip ? `<button class="btn btn--line" data-act="skip">${L('Omitir', 'Skip')}</button>` : `<button class="btn btn--line" data-act="cancel">${L('Cancelar', 'Cancel')}</button>`}
     <button class="btn btn--dark" data-act="next">${label}</button>
   </div>
-  ${skip ? '<button class="btn btn--ghost btn--block" data-act="cancel">Cancelar chequeo</button>' : ''}`;
+  ${skip ? `<button class="btn btn--ghost btn--block" data-act="cancel">${L('Cancelar chequeo', 'Cancel check-up')}</button>` : ''}`;
 
 function numberField(name, label, unit, { min, max, step = 1, value = '', required = true }) {
   return `<label class="field"><span>${label}</span><span class="field__in"><input name="${name}" type="number" inputmode="decimal" min="${min}" max="${max}" step="${step}" value="${value}"${required ? ' required' : ''}/><em>${unit}</em></span></label>`;
@@ -627,24 +665,24 @@ function stepHr() {
       ${stepIntro('hr')}
       <div class="sensor-box" ${c.manual ? 'hidden' : ''}>
         <div class="ring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="ring__bg"/><circle cx="60" cy="60" r="52" class="ring__fg" pathLength="100"/></svg>
-          <div class="ring__in"><b data-live="cbpm">—</b><small>lpm</small></div></div>
-        <h3 class="check__msg" data-live="cmsg">Pon el dedo en el sensor</h3>
+          <div class="ring__in"><b data-live="cbpm">—</b><small>${L('lpm', 'bpm')}</small></div></div>
+        <h3 class="check__msg" data-live="cmsg">${QUALITY_TEXT['no-finger']}</h3>
         <div class="wavebox"><canvas class="wave" aria-hidden="true"></canvas></div>
-        <button class="btn btn--ghost btn--block" data-act="manual">El sensor no funciona: introducir a mano</button>
+        <button class="btn btn--ghost btn--block" data-act="manual">${L('El sensor no funciona: introducir a mano', 'Sensor not working? Enter it manually')}</button>
       </div>
       <form class="manual" ${c.manual ? '' : 'hidden'}>
-        <p class="note">Medida manual: usa el pulsioxímetro de la enfermería y anota lo que marque.</p>
-        ${numberField('hr', 'Pulso en reposo', 'lpm', { min: 25, max: 230 })}
-        ${numberField('spo2', 'Oxígeno (SpO₂), opcional', '%', { min: 50, max: 100, required: false })}
-        <button class="btn btn--dark btn--block" type="submit">Siguiente</button>
+        <p class="note">${L('Medida manual: usa el pulsioxímetro de la enfermería y anota lo que marque.', 'Manual reading: use the pulse oximeter from the medical kit and enter what it shows.')}</p>
+        ${numberField('hr', L('Pulso en reposo', 'Resting heart rate'), L('lpm', 'bpm'), { min: 25, max: 230 })}
+        ${numberField('spo2', L('Oxígeno (SpO₂), opcional', 'Oxygen (SpO₂), optional'), '%', { min: 50, max: 100, required: false })}
+        <button class="btn btn--dark btn--block" type="submit">${L('Siguiente', 'Next')}</button>
       </form>
-      <button class="btn btn--line btn--block" data-act="cancel">Cancelar chequeo</button>
+      <button class="btn btn--line btn--block" data-act="cancel">${L('Cancelar chequeo', 'Cancel check-up')}</button>
     </section>`);
   node.querySelector('[data-act="manual"]').onclick = () => { c.manual = true; go('check'); };
   node.querySelector('form.manual').onsubmit = (e) => {
     e.preventDefault();
     const hr = readNum(node, 'hr', 25, 230);
-    if (hr == null) { toast('Escribe un pulso válido.'); return; }
+    if (hr == null) { toast(L('Escribe un pulso válido.', 'Enter a valid heart rate.')); return; }
     c.values.hr = Math.round(hr);
     const sp = readNum(node, 'spo2', 50, 100);
     if (sp != null) c.values.spo2 = Math.round(sp);
@@ -660,15 +698,15 @@ function stepBp() {
       ${topbar()}
       ${stepIntro('bp')}
       <div class="fields2">
-        ${numberField('sys', 'Alta (sistólica)', 'mmHg', { min: 50, max: 260 })}
-        ${numberField('dia', 'Baja (diastólica)', 'mmHg', { min: 30, max: 160 })}
+        ${numberField('sys', L('Alta (sistólica)', 'Top (systolic)'), 'mmHg', { min: 50, max: 260 })}
+        ${numberField('dia', L('Baja (diastólica)', 'Bottom (diastolic)'), 'mmHg', { min: 30, max: 160 })}
       </div>
       ${footer()}
     </section>`);
   node.querySelector('[data-act="skip"]').onclick = nextStep;
   node.querySelector('[data-act="next"]').onclick = () => {
     const sys = readNum(node, 'sys', 50, 260), dia = readNum(node, 'dia', 30, 160);
-    if (sys == null || dia == null || dia >= sys) { toast('Revisa los dos valores: la alta debe ser mayor que la baja.'); return; }
+    if (sys == null || dia == null || dia >= sys) { toast(L('Revisa los dos valores: la alta debe ser mayor que la baja.', 'Check both values: the top number must be higher than the bottom one.')); return; }
     S.check.values.bp = { sys: Math.round(sys), dia: Math.round(dia) };
     nextStep();
   };
@@ -680,14 +718,14 @@ function stepGlucose() {
     <section class="screen check">
       ${topbar()}
       ${stepIntro('glucose')}
-      ${numberField('glu', 'Glucosa', 'mg/dL', { min: 20, max: 600 })}
-      <label class="check-row"><input type="checkbox" name="fasting"/> <span>Estoy en ayunas (más de 8 h sin comer)</span></label>
+      ${numberField('glu', L('Glucosa', 'Glucose'), 'mg/dL', { min: 20, max: 600 })}
+      <label class="check-row"><input type="checkbox" name="fasting"/> <span>${L('Estoy en ayunas (más de 8 h sin comer)', 'I am fasting (no food for over 8 h)')}</span></label>
       ${footer()}
     </section>`);
   node.querySelector('[data-act="skip"]').onclick = nextStep;
   node.querySelector('[data-act="next"]').onclick = () => {
     const g = readNum(node, 'glu', 20, 600);
-    if (g == null) { toast('Escribe un valor de glucosa entre 20 y 600 mg/dL.'); return; }
+    if (g == null) { toast(L('Escribe un valor de glucosa entre 20 y 600 mg/dL.', 'Enter a glucose value between 20 and 600 mg/dL.')); return; }
     S.check.values.glucose = Math.round(g);
     S.check.values.fasting = node.querySelector('[name="fasting"]').checked;
     nextStep();
@@ -701,11 +739,11 @@ function stepMind() {
     <section class="screen check">
       ${topbar()}
       ${stepIntro('mind')}
-      ${PHQ2.map((q, i) => `<fieldset class="q"><legend>En las últimas dos semanas: ${esc(q.toLowerCase())}</legend>
+      ${PHQ2.map((q, i) => `<fieldset class="q"><legend>${L('En las últimas dos semanas', 'Over the last two weeks')}: ${esc(q.toLowerCase())}</legend>
         <div class="seg seg--wrap seg--left">${PHQ2_ANSWERS.map((t, v) => `<button type="button" data-q="${i}" data-v="${v}">${t}</button>`).join('')}</div></fieldset>`).join('')}
-      ${numberField('sleep', 'Horas dormidas esta noche', 'h', { min: 0, max: 16, step: 0.5, value: S.health?.sleep?.hours != null ? Math.round(S.health.sleep.hours * 2) / 2 : 7 })}
-      ${S.health?.sleep?.hours != null ? `<p class="fine">Según tu reloj (Samsung Health): ${fmt(S.health.sleep.hours, 1)} h. Corrígelo si no es así.</p>` : ''}
-      <label class="field"><span>Estrés hoy: <b data-live="stressv">3</b> de 10</span><input name="stress" type="range" min="0" max="10" step="1" value="3"/></label>
+      ${numberField('sleep', L('Horas dormidas esta noche', 'Hours slept last night'), 'h', { min: 0, max: 16, step: 0.5, value: S.health?.sleep?.hours != null ? Math.round(S.health.sleep.hours * 2) / 2 : 7 })}
+      ${S.health?.sleep?.hours != null ? `<p class="fine">${L(`Según tu reloj (Samsung Health): ${fmt(S.health.sleep.hours, 1)} h. Corrígelo si no es así.`, `According to your watch (Samsung Health): ${fmt(S.health.sleep.hours, 1)} h. Correct it if that is wrong.`)}</p>` : ''}
+      <label class="field"><span>${L('Estrés hoy', 'Stress today')}: <b data-live="stressv">3</b> ${L('de', 'out of')} 10</span><input name="stress" type="range" min="0" max="10" step="1" value="3"/></label>
       ${footer(false)}
     </section>`);
   node.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => {
@@ -715,9 +753,9 @@ function stepMind() {
   const range = node.querySelector('[name="stress"]');
   range.oninput = () => { node.querySelector('[data-live="stressv"]').textContent = range.value; };
   node.querySelector('[data-act="next"]').onclick = () => {
-    if (a.q0 == null || a.q1 == null) { toast('Responde a las dos preguntas.'); return; }
+    if (a.q0 == null || a.q1 == null) { toast(L('Responde a las dos preguntas.', 'Answer both questions.')); return; }
     const sleep = readNum(node, 'sleep', 0, 16);
-    if (sleep == null) { toast('Escribe las horas de sueño.'); return; }
+    if (sleep == null) { toast(L('Escribe las horas de sueño.', 'Enter your hours of sleep.')); return; }
     S.check.values.mind = { phq2: a.q0 + a.q1, sleep, stress: +range.value };
     nextStep();
   };
@@ -729,12 +767,14 @@ function stepFlags() {
     <section class="screen check">
       ${topbar()}
       ${stepIntro('flags')}
-      <p class="lead">¿Notas ahora alguna de estas señales? Si es así, no esperes al resultado: avisa a la tripulación.</p>
+      <p class="lead">${L('¿Notas ahora alguna de estas señales? Si es así, no esperes al resultado: avisa a la tripulación.', 'Do you notice any of these signs right now? If so, do not wait for the result: alert the crew.')}</p>
       <div class="flags">${RED_FLAGS.map((f, i) => `<label class="check-row check-row--flag"><input type="checkbox" value="${i}"/> <span>${esc(f)}</span></label>`).join('')}</div>
-      ${footer(false, 'Ver resultado')}
+      ${footer(false, L('Ver resultado', 'See result'))}
     </section>`);
   node.querySelector('[data-act="next"]').onclick = () => {
-    S.check.values.flags = [...node.querySelectorAll('.flags input:checked')].map((x) => RED_FLAGS[+x.value]);
+    const picked = [...node.querySelectorAll('.flags input:checked')].map((x) => +x.value);
+    S.check.values.flags = picked.map((i) => RED_FLAGS[i]);
+    S.check.values.selfHarm = picked.includes(SELF_HARM);
     nextStep();
   };
   return node;
@@ -750,18 +790,18 @@ function updateCheck() {
   if (fg) fg.style.strokeDashoffset = String(100 - progress * 100);
   const v = S.vitals;
   setText('cbpm', v?.bpm && v.quality === 'good' ? String(v.bpm) : '—');
-  setText('cmsg', v ? (v.quality === 'good' ? `Midiendo… ${Math.max(0, Math.ceil(CHECK_S - elapsed))} s` : QUALITY_TEXT[v.quality]) : 'Esperando a la estación…');
+  setText('cmsg', v ? (v.quality === 'good' ? `${L('Midiendo…', 'Measuring…')} ${Math.max(0, Math.ceil(CHECK_S - elapsed))} s` : QUALITY_TEXT[v.quality]) : L('Esperando a la estación…', 'Waiting for the station…'));
   if ((good >= CHECK_GOOD && elapsed >= CHECK_S) || elapsed >= CHECK_MAX_S) {
     c.done = true;
     const r = summarize(c.samples);
     if (r.bpm == null) {
-      toast('No hubo señal estable. Introduce el pulso a mano.');
+      toast(L('No hubo señal estable. Introduce el pulso a mano.', 'No stable signal. Enter your heart rate manually.'));
       c.manual = true; c.done = false; go('check');
       return;
     }
     Object.assign(c.values, { hr: r.bpm, spo2: r.spo2 ?? undefined, watchBpm: r.watchBpm, skin: r.skin, cabin: { t: r.temperature, h: r.humidity, p: r.pressure } });
     vibrate(60);
-    toast(`Pulso ${r.bpm} lpm${r.spo2 ? ` · SpO₂ ${r.spo2} %` : ''}. Siguiente paso.`);
+    toast(`${L('Pulso', 'Heart rate')} ${r.bpm} ${L('lpm', 'bpm')}${r.spo2 ? ` · SpO₂ ${r.spo2} %` : ''}. ${L('Siguiente paso.', 'Next step.')}`);
     nextStep();
   }
 }
@@ -783,74 +823,74 @@ function finishCheck() {
   if (v.hr != null) {
     const r = classify('hr', v.hr);
     // la línea base personal puede subir a amarillo; el rojo solo lo dan los umbrales absolutos
-    const p = assess({ bpm: v.hr, spo2: null }, { history: list.filter((h) => h.bpm), crew: S.person?.crew });
+    const p = assess({ bpm: v.hr, spo2: null }, { history: list.filter((h) => h.bpm), crew: S.person?.crew, lang: lang() });
     if (r.level === 0 && p.z != null && Math.abs(p.z) >= 2.5) {
       r.level = 1;
-      r.reason = `${v.hr} lpm está en rango general, pero lejos de tu normal (${p.baseline.hr} lpm).`;
+      r.reason = L(`${v.hr} lpm está en rango general, pero lejos de tu normal (${p.baseline.hr} lpm).`, `${v.hr} bpm is within the general range, but far from your normal (${p.baseline.hr} bpm).`);
     }
-    results.push({ ...r, display: `${v.hr} lpm${v.manualHr ? ' (manual)' : ''}` });
+    results.push({ ...r, display: `${v.hr} ${L('lpm', 'bpm')}${v.manualHr ? ` (${L('manual', 'manual')})` : ''}` });
   }
   if (v.spo2 != null) results.push({ ...classify('spo2', v.spo2), display: `${v.spo2} %` });
   if (v.bp) results.push({ ...classify('bp', v.bp), display: `${v.bp.sys}/${v.bp.dia} mmHg` });
-  if (v.glucose != null) results.push({ ...classify('glucose', v.glucose), display: `${v.glucose} mg/dL${v.fasting ? ' en ayunas' : ''}` });
-  if (v.mind) results.push({ ...classify('mind', v.mind), display: `PHQ-2 ${v.mind.phq2}/6 · ${fmt(v.mind.sleep, 1)} h · estrés ${v.mind.stress}/10` });
+  if (v.glucose != null) results.push({ ...classify('glucose', v.glucose), display: `${v.glucose} mg/dL${v.fasting ? L(' en ayunas', ' fasting') : ''}` });
+  if (v.mind) results.push({ ...classify('mind', v.mind), display: `PHQ-2 ${v.mind.phq2}/6 · ${fmt(v.mind.sleep, 1)} h · ${L('estrés', 'stress')} ${v.mind.stress}/10` });
   const plan = actionPlan(results, envKey());
   const flags = v.flags || [];
   const overall = flags.length ? 2 : plan.worst;
   const entry = {
     at: Date.now(), env: envKey(), bpm: v.hr ?? null, spo2: v.spo2 ?? null, bp: v.bp || null, glucose: v.glucose ?? null,
-    mind: v.mind || null, flags, overall, status: ['normal', 'watch', 'alert'][overall],
+    mind: v.mind || null, flags, selfHarm: !!v.selfHarm, overall, status: ['normal', 'watch', 'alert'][overall],
     sim: S.link?.kind === 'sim' || !!S.status?.test,
   };
   if (results.length) { saved.history[c.uid] = [...list, entry].slice(-200); store.save(saved); }
-  S.result = { results, plan, flags, overall, entry, explanation: null };
+  S.result = { results, plan, flags, selfHarm: !!v.selfHarm, overall, entry, explanation: null };
   vibrate(overall === 0 ? 60 : [80, 80, 80]);
   go('result');
 }
 
 /* ------------------------------------------------------- 5 resultado -- */
-const LEVEL_TXT = ['Verde · todo en rango', 'Amarillo · a vigilar', 'Rojo · actúa ahora'];
+const LEVEL_TXT = new Proxy([], { get: (a, k) => (/^\d$/.test(k) ? t(`level.${k}`) : a[k]) });
 const LEVEL_CLS = ['ok', 'warn', 'err'];
 
 function result() {
-  const { results, plan, flags, overall, entry } = S.result;
+  const { results, plan, flags, selfHarm, overall, entry } = S.result;
   const env = ENVIRONMENTS[entry.env];
   const node = el(`
     <section class="screen result">
       ${topbar()}
-      <p class="kicker">${esc(S.person?.name || '')} · ${esc(env.name)} · ${new Date(entry.at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</p>
-      ${flags.length ? `<div class="emergency" role="alert"><b>Señal de alarma</b><p>Has marcado: ${esc(flags.join(', ').toLowerCase())}.</p>
-        <p>Avisa ahora a la tripulación y al oficial médico. ${esc(env.ground)}</p>
-        ${flags.includes('Pensamientos de hacerte daño') ? '<p>No te quedes solo. Habla con alguien de la tripulación ahora mismo. En la Tierra: 112 o 024.</p>' : ''}</div>` : ''}
+      <p class="kicker">${esc(S.person?.name || '')} · ${esc(env.name)} · ${new Date(entry.at).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })}</p>
+      ${flags.length ? `<div class="emergency" role="alert"><b>${L('Señal de alarma', 'Warning sign')}</b><p>${L('Has marcado', 'You marked')}: ${esc(flags.join(', ').toLowerCase())}.</p>
+        <p>${L('Avisa ahora a la tripulación y al oficial médico.', 'Alert the crew and the medical officer now.')} ${esc(env.ground)}</p>
+        ${selfHarm || flags.some(isSelfHarm) ? `<p>${L('No te quedes solo. Habla con alguien de la tripulación ahora mismo. En la Tierra: 112 o 024.', 'Do not stay alone. Talk to someone in the crew right now. On Earth: call your local emergency number (112 in Europe, 911 in the US).')}</p>` : ''}</div>` : ''}
       <div class="verdict verdict--${LEVEL_CLS[overall]}"><span></span>${LEVEL_TXT[overall]}</div>
       <div class="ai-box">
-        <div class="ai-box__head"><span class="ai-badge">IA</span><b>Lo que significa</b></div>
-        <p class="ai-text" data-live="ai">Preparando la explicación…</p>
-        <small>El semáforo lo deciden umbrales fijos; la IA solo lo explica.</small>
+        <div class="ai-box__head"><span class="ai-badge">${L('IA', 'AI')}</span><b>${L('Lo que significa', 'What it means')}</b></div>
+        <p class="ai-text" data-live="ai">${L('Preparando la explicación…', 'Preparing the explanation…')}</p>
+        <small>${L('El semáforo lo deciden umbrales fijos; la IA solo lo explica.', 'Fixed thresholds decide the traffic light; the AI only explains it.')}</small>
       </div>
-      <h3 class="section-t">Tus medidas</h3>
+      <h3 class="section-t">${L('Tus medidas', 'Your measurements')}</h3>
       <ul class="results">${results.map((r) => `
         <li class="lvl-${LEVEL_CLS[r.level]}"><span class="dot dot--${LEVEL_CLS[r.level]}"></span>
-          <div><b>${esc(r.name)}</b><small>${esc(r.reason)}</small></div><em>${esc(r.display)}</em></li>`).join('') || '<li class="empty">No se ha medido nada.</li>'}</ul>
+          <div><b>${esc(r.name)}</b><small>${esc(r.reason)}</small></div><em>${esc(r.display)}</em></li>`).join('') || `<li class="empty">${L('No se ha medido nada.', 'Nothing was measured.')}</li>`}</ul>
 
 
       ${overall > 0 ? `<div class="plan">
-        <h3>Qué hacer ahora</h3>
+        <h3>${L('Qué hacer ahora', 'What to do now')}</h3>
         <ul>${plan.now.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
-        <h3>Tripulación</h3><p>${esc(plan.crew)}</p>
-        <h3>Cirujano de vuelo</h3><p>${esc(plan.surgeon)}</p>
-        ${plan.evac || flags.length ? `<h3>Si empeora</h3><p>${esc(env.evac)}</p>` : ''}
-        <p class="fine">Comunicación con Tierra en este entorno: ${esc(env.delay)}.</p>
+        <h3>${L('Tripulación', 'Crew')}</h3><p>${esc(plan.crew)}</p>
+        <h3>${L('Cirujano de vuelo', 'Flight surgeon')}</h3><p>${esc(plan.surgeon)}</p>
+        ${plan.evac || flags.length ? `<h3>${L('Si empeora', 'If it gets worse')}</h3><p>${esc(env.evac)}</p>` : ''}
+        <p class="fine">${L('Comunicación con Tierra en este entorno', 'Communication with Earth in this environment')}: ${esc(env.delay)}.</p>
       </div>` : `<p class="lead">${esc(plan.crew)} ${esc(plan.surgeon)}</p>`}
 
-      ${(() => { const a = spaceNow(); return a && a.level > 0 ? `<div class="plan plan--space"><h3>Clima espacial (DONKI · NASA)</h3><p><b>${esc(a.headline)}.</b> ${esc(a.reasons.filter((r) => r.level > 0).map((r) => r.text).join(' '))}</p><ul>${a.actions.map((x) => `<li>${esc(x)}</li>`).join('')}</ul><p class="fine">Es un riesgo del entorno: no cambia el color de tu chequeo.</p></div>` : ''; })()}
-      ${entry.sim ? '<p class="note">Chequeo hecho con datos simulados.</p>' : ''}
+      ${(() => { const a = spaceNow(); return a && a.level > 0 ? `<div class="plan plan--space"><h3>${L('Clima espacial', 'Space weather')} (DONKI · NASA)</h3><p><b>${esc(a.headline)}.</b> ${esc(a.reasons.filter((r) => r.level > 0).map((r) => r.text).join(' '))}</p><ul>${a.actions.map((x) => `<li>${esc(x)}</li>`).join('')}</ul><p class="fine">${L('Es un riesgo del entorno: no cambia el color de tu chequeo.', 'This is an environmental risk: it does not change the colour of your check-up.')}</p></div>` : ''; })()}
+      ${entry.sim ? `<p class="note">${L('Chequeo hecho con datos simulados.', 'Check-up done with simulated data.')}</p>` : ''}
       <div class="row">
-        <button class="btn btn--dark" data-act="psy">Hablar con la psicóloga</button>
-        <button class="btn btn--line" data-act="history">Historial</button>
+        <button class="btn btn--dark" data-act="psy">${L('Hablar con Paze', 'Talk to Paze')}</button>
+        <button class="btn btn--line" data-act="history">${L('Historial', 'History')}</button>
       </div>
-      <button class="btn btn--ghost btn--block" data-act="home">Volver al inicio</button>
-      <p class="fine">XPaze no diagnostica. Las cifras de referencia y sus fuentes están en la tabla médica del proyecto.</p>
+      <button class="btn btn--ghost btn--block" data-act="home">${L('Volver al inicio', 'Back to home')}</button>
+      <p class="fine">${L('XPaze no diagnostica. Las cifras de referencia y sus fuentes están en la tabla médica del proyecto.', 'XPaze does not diagnose. Reference values and their sources are in the project’s medical table.')}</p>
     </section>`);
   node.querySelector('[data-act="psy"]').onclick = () => openChat();
   node.querySelector('[data-act="history"]').onclick = () => go('history');
@@ -867,13 +907,13 @@ async function explain(node) {
   const env = ENVIRONMENTS[R.entry.env];
   try {
     R.explanation = await streamAI('explicar', { check: {
-      person: S.person?.name, environment: `${env.name} (${env.gravity}; retardo con Tierra ${env.delay})${spaceNow()?.level ? `. Clima espacial: ${spaceNow().headline}` : ''}`,
+      person: S.person?.name, environment: `${env.name} (${env.gravity}; ${L('retardo con Tierra', 'delay to Earth')} ${env.delay})${spaceNow()?.level ? `. Clima espacial: ${spaceNow().headline}` : ''}`,
       overall: R.overall, simulated: R.entry.sim,
       results: R.results.map((r) => ({ name: r.name, display: r.display, level: r.level, reason: r.reason })),
       plan: { now: R.plan.now, crew: R.plan.crew, surgeon: R.plan.surgeon, evac: R.plan.evac },
-    } }, (t) => { out.textContent = t; });
+    }, lang: lang() }, (t) => { out.textContent = t; });
   } catch {
-    out.textContent = 'La IA no está disponible ahora mismo (sin conexión con el servidor). El semáforo y la guía de esta pantalla son válidos igualmente.';
+    out.textContent = L('La IA no está disponible ahora mismo (sin conexión con el servidor). El semáforo y la guía de esta pantalla son válidos igualmente.', 'The AI is not available right now (no connection to the server). The traffic light and the guidance on this screen are still valid.');
     out.classList.add('is-off');
   }
 }
@@ -906,28 +946,28 @@ function hrTypical(h) {
   const m = v.length >> 1;
   return v.length % 2 ? v[m] : Math.round((v[m - 1] + v[m]) / 2);
 }
-const hhmm = (t) => (t ? new Date(t).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '');
+const hhmm = (t) => (t ? new Date(t).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) : '');
 
 function healthBox() {
   const code = saved.healthCodes[S.person?.uid];
   if (!code) {
-    return `<p class="fine">Instala XPaze Link en el móvil emparejado con el reloj y escribe aquí su código.</p>
-      <div class="compose"><input class="code-in" maxlength="9" placeholder="Código (8 caracteres)" autocapitalize="characters" autocomplete="off" aria-label="Código de XPaze Link"/><button class="btn btn--dark" data-act="hlink">Vincular</button></div>`;
+    return `<p class="fine">${L('Instala XPaze Link en el móvil emparejado con el reloj y escribe aquí su código.', 'Install XPaze Link on the phone paired with the watch and enter its code here.')}</p>
+      <div class="compose"><input class="code-in" maxlength="9" placeholder="${L('Código (8 caracteres)', 'Code (8 characters)')}" autocapitalize="characters" autocomplete="off" aria-label="${L('Código de XPaze Link', 'XPaze Link code')}"/><button class="btn btn--dark" data-act="hlink">${L('Vincular', 'Link')}</button></div>`;
   }
   const h = S.health;
-  if (!h) return `<p class="fine">Buscando datos del código ${esc(code)}…</p><button class="chip-btn" data-act="hunlink">Desvincular</button>`;
-  if (h.error) return `<p class="fine">${esc(h.error)}</p><button class="chip-btn" data-act="hunlink">Cambiar código</button>`;
-  const ago = (t) => { const m = Math.round((Date.now() - new Date(t)) / 60000); return m < 1 ? 'ahora' : m < 60 ? `hace ${m} min` : `hace ${Math.round(m / 60)} h`; };
+  if (!h) return `<p class="fine">${L('Buscando datos del código', 'Looking for data from code')} ${esc(code)}…</p><button class="chip-btn" data-act="hunlink">${L('Desvincular', 'Unlink')}</button>`;
+  if (h.error) return `<p class="fine">${esc(h.error)}</p><button class="chip-btn" data-act="hunlink">${L('Cambiar código', 'Change code')}</button>`;
+  const ago = (t) => { const m = Math.round((Date.now() - new Date(t)) / 60000); return m < 1 ? L('ahora', 'just now') : m < 60 ? L(`hace ${m} min`, `${m} min ago`) : L(`hace ${Math.round(m / 60)} h`, `${Math.round(m / 60)} h ago`); };
   const tiles = [
-    ['Pulso', h.heartRate?.last, 'lpm', h.heartRate && `a las ${hhmm(h.heartRate.lastAt)} · típico ${hrTypical(h)}`],
-    ['En reposo', h.restingHeartRate?.bpm, 'lpm'],
+    [L('Pulso', 'Pulse'), h.heartRate?.last, L('lpm', 'bpm'), h.heartRate && L(`a las ${hhmm(h.heartRate.lastAt)} · típico ${hrTypical(h)}`, `at ${hhmm(h.heartRate.lastAt)} · typical ${hrTypical(h)}`)],
+    [L('En reposo', 'Resting'), h.restingHeartRate?.bpm, L('lpm', 'bpm')],
     ['HRV', h.hrv?.rmssdMs != null ? Math.round(h.hrv.rmssdMs) : null, 'ms'],
     ['SpO₂', h.spo2?.pct != null ? Math.round(h.spo2.pct) : null, '%'],
-    ['Sueño', h.sleep?.hours, 'h'],
-    ['Pasos hoy', h.stepsToday, ''],
+    [L('Sueño', 'Sleep'), h.sleep?.hours, 'h'],
+    [L('Pasos hoy', 'Steps today'), h.stepsToday, ''],
   ].filter(([, v]) => v != null);
-  return `<div class="tiles tiles--3">${tiles.map(([n, v, u, sub]) => `<div class="tile tile--sm"><small>${n}</small><b>${esc(String(v))}</b><em>${u}</em>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`).join('') || '<p class="fine">Aún sin datos en Health Connect.</p>'}</div>
-    <p class="fine">Datos reales del reloj vía Samsung Health · recibidos ${ago(h.receivedAt)} · <button class="linkish" data-act="hunlink">desvincular</button></p>`;
+  return `<div class="tiles tiles--3">${tiles.map(([n, v, u, sub]) => `<div class="tile tile--sm"><small>${n}</small><b>${esc(String(v))}</b><em>${u}</em>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`).join('') || `<p class="fine">${L('Aún sin datos en Health Connect.', 'No data in Health Connect yet.')}</p>`}</div>
+    <p class="fine">${L('Datos reales del reloj vía Samsung Health · recibidos', 'Real watch data via Samsung Health · received')} ${ago(h.receivedAt)} · <button class="linkish" data-act="hunlink">${L('desvincular', 'unlink')}</button></p>`;
 }
 
 async function refreshHealth() {
@@ -936,9 +976,9 @@ async function refreshHealth() {
   if (!code) return;
   try {
     const r = await fetch(new URL(`api/salud/${code}`, location.href), { cache: 'no-store' });
-    S.health = r.ok ? await r.json() : { error: r.status === 404 ? 'Todavía no hay datos con ese código. Abre XPaze Link en el móvil y pulsa «Leer y enviar ahora».' : `Error ${r.status} al leer los datos.` };
+    S.health = r.ok ? await r.json() : { error: r.status === 404 ? L('Todavía no hay datos con ese código. Abre XPaze Link en el móvil y pulsa «Leer y enviar ahora».', 'No data with that code yet. Open XPaze Link on the phone and tap “Read and send now”.') : L(`Error ${r.status} al leer los datos.`, `Error ${r.status} reading the data.`) };
   } catch {
-    S.health = { error: 'Sin conexión con el servidor de XPaze.' };
+    S.health = { error: L('Sin conexión con el servidor de XPaze.', 'No connection to the XPaze server.') };
   }
   const box = app.querySelector('[data-live="shealth"]');
   if (box) { box.innerHTML = healthBox(); wireHealth(box); }
@@ -948,7 +988,7 @@ async function refreshHealth() {
 function wireHealth(root) {
   root.querySelector('[data-act="hlink"]')?.addEventListener('click', () => {
     const v = root.querySelector('.code-in').value.toUpperCase().replace(/[^0-9A-Z]/g, '');
-    if (!/^[2-9A-HJ-NP-Z]{8}$/.test(v)) { toast('El código tiene 8 caracteres, como en XPaze Link.'); return; }
+    if (!/^[2-9A-HJ-NP-Z]{8}$/.test(v)) { toast(L('El código tiene 8 caracteres, como en XPaze Link.', 'The code has 8 characters, as shown in XPaze Link.')); return; }
     saved.healthCodes[S.person?.uid] = v; store.save(saved); S.health = null;
     root.innerHTML = healthBox(); wireHealth(root); refreshHealth();
   });
@@ -983,18 +1023,18 @@ async function loadSpace() {
   const box = app.querySelector('[data-live="space"]');
   if (box) box.innerHTML = spaceBox();
 }
-const spaceNow = () => (S.space && !S.space.error ? assessSpace(S.space.events, envKey()) : null);
+const spaceNow = () => (S.space && !S.space.error ? assessSpace(S.space.events, envKey(), Date.now(), lang()) : null);
 
 function spaceBox() {
-  if (!S.space) return '<p class="fine">Consultando los avisos de clima espacial…</p>';
-  if (S.space.error) return '<p class="fine">No se han podido leer los avisos de clima espacial ahora mismo.</p>';
+  if (!S.space) return `<p class="fine">${L('Consultando los avisos de clima espacial…', 'Checking space-weather alerts…')}</p>`;
+  if (S.space.error) return `<p class="fine">${L('No se han podido leer los avisos de clima espacial ahora mismo.', 'Could not read the space-weather alerts right now.')}</p>`;
   const a = spaceNow();
   const ago = Math.round((Date.now() - Date.parse(S.space.fetchedAt)) / 60_000);
   return `<div class="spacecard lvl-${LEVEL_CLS[a.level]}">
     <p class="spacecard__head"><span class="dot dot--${LEVEL_CLS[a.level]}"></span><b>${esc(a.headline)}</b></p>
     ${a.reasons.slice(0, 3).map((r) => `<p class="fine">${esc(r.text)}</p>`).join('')}
     ${a.actions.length ? `<ul>${a.actions.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-    <p class="fine">Entorno: ${esc(ENVIRONMENTS[envKey()].name)}. Avisos de los últimos 7 días, detectados desde la órbita terrestre${envKey() === 'transit' ? '; en tránsito la exposición real depende de la posición de la nave' : ''}. Actualizado hace ${ago < 60 ? `${Math.max(ago, 1)} min` : `${Math.round(ago / 60)} h`}${S.space.stale ? ' (copia anterior)' : ''}.</p>
+    <p class="fine">${L('Entorno', 'Environment')}: ${esc(ENVIRONMENTS[envKey()].name)}. ${L('Avisos de los últimos 7 días, detectados desde la órbita terrestre', 'Alerts from the last 7 days, detected from Earth orbit')}${envKey() === 'transit' ? L('; en tránsito la exposición real depende de la posición de la nave', '; in transit the real exposure depends on where the ship is') : ''}. ${L('Actualizado hace', 'Updated')} ${ago < 60 ? `${Math.max(ago, 1)} min` : `${Math.round(ago / 60)} h`}${L('', ' ago')}${S.space.stale ? L(' (copia anterior)', ' (cached copy)') : ''}.</p>
   </div>`;
 }
 
@@ -1003,7 +1043,7 @@ async function rememberSession(uid, messages) {
   if (!uid || messages.filter((m) => m.role === 'user').length < 2) return;
   try {
     const r = await fetch(new URL('api/psicologa/resumen', location.href), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages, lang: lang() }),
     });
     if (!r.ok) return;
     const { summary, facts = [] } = await r.json();
@@ -1013,7 +1053,7 @@ async function rememberSession(uid, messages) {
     for (const f of facts) if (f && !known.some((k) => k.toLowerCase() === f.toLowerCase())) known.push(f);
     saved.facts[uid] = known.slice(-20);
     store.save(saved);
-    toast('Paze recordará lo que habéis hablado.');
+    toast(L('Paze recordará lo que habéis hablado.', 'Paze will remember what you talked about.'));
   } catch { /* sin memoria esta vez */ }
 }
 
@@ -1071,11 +1111,11 @@ function buildContext() {
   const watch = w ? Object.fromEntries(Object.entries({ 'Pulso del reloj': w.bpm, 'Piel °C': w.skin, 'SpO₂ del reloj': w.spo2, 'Batería %': w.battery }).filter(([, x]) => x != null)) : null;
   return {
     name: p?.name, role: p?.role,
-    environment: `${env.name} (${env.gravity}; retardo con Tierra ${env.delay})`,
+    environment: `${env.name} (${env.gravity}; ${L('retardo con Tierra', 'delay to Earth')} ${env.delay})`,
     status: r ? LEVEL_TXT[r.overall] : null,
     factors: r ? r.results.filter((x) => x.level > 0).map((x) => x.reason) : [],
     lastCheck: r ? [...r.results.map((x) => `${x.name}: ${x.display} → ${COLOR[x.level]} (${x.reason})`), ...(r.flags.length ? [`Señales de alarma marcadas: ${r.flags.join(', ')}`] : [])] : [],
-    lastCheckAt: r ? new Date(r.entry.at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null,
+    lastCheckAt: r ? new Date(r.entry.at).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null,
     plan: r && r.overall > 0 ? [...r.plan.now, r.plan.crew, r.plan.surgeon] : [],
     history: hist.map((h) => [
       day(h.at), h.bpm != null && `pulso ${h.bpm}`, h.bp && `tensión ${h.bp.sys}/${h.bp.dia}`, h.glucose != null && `glucosa ${h.glucose}`,
@@ -1100,10 +1140,11 @@ function openChat() {
   go('chat');
 }
 
-const ORB_STATE = {
-  idle: 'Pulsa para hablar', connecting: 'Conectando…', listening: 'Te escucho', user: 'Te escucho…',
-  thinking: 'Pensando…', speaking: 'Hablando', error: 'No se pudo conectar',
+const ORB_STATES = {
+  es: { idle: 'Pulsa para hablar', connecting: 'Conectando…', listening: 'Te escucho', user: 'Te escucho…', thinking: 'Pensando…', speaking: 'Hablando', error: 'No se pudo conectar' },
+  en: { idle: 'Tap to talk', connecting: 'Connecting…', listening: 'I’m listening', user: 'I’m listening…', thinking: 'Thinking…', speaking: 'Speaking', error: 'Could not connect' },
 };
+const ORB_STATE = new Proxy({}, { get: (_, k) => ORB_STATES[lang()][k] });
 
 function chat() {
   const C = S.chat;
@@ -1113,39 +1154,39 @@ function chat() {
     <section class="screen chatv">
       ${topbar()}
       <div class="chat-top">
-        <p class="kicker">Paze · psicóloga de a bordo (IA)</p>
-        <div class="seg"><button data-mode="voz" class="${voice ? 'is-on' : ''}">Voz</button><button data-mode="texto" class="${voice ? '' : 'is-on'}">Texto</button></div>
+        <p class="kicker">${L('Paze · psicóloga de a bordo (IA)', 'Paze · on-board psychologist (AI)')}</p>
+        <div class="seg"><button data-mode="voz" class="${voice ? 'is-on' : ''}">${L('Voz', 'Voice')}</button><button data-mode="texto" class="${voice ? '' : 'is-on'}">${L('Texto', 'Text')}</button></div>
       </div>
-      <p class="ai-notice">Estás hablando con una IA. No es una persona ni sustituye a un profesional.</p>
-      <div class="crisis-box" role="alert" hidden><b>Si estás en peligro, no esperes.</b><p>Habla ahora con el oficial médico o el comandante. En la Tierra: 112, o 024 en España (gratis, 24 h).</p></div>
+      <p class="ai-notice">${t('ai.notice')}</p>
+      <div class="crisis-box" role="alert" hidden><b>${L('Si estás en peligro, no esperes.', 'If you are in danger, do not wait.')}</b><p>${L('Habla ahora con el oficial médico o el comandante. En la Tierra: 112, o 024 en España (gratis, 24 h).', 'Talk to the medical officer or the commander now. On Earth: your local emergency number (112 in Europe; 024 in Spain, free, 24/7).')}</p></div>
       ${voice ? `
       <div class="voice">
-        <button class="vorb vorb--paze" data-state="idle" aria-label="Empezar a hablar con Paze, la psicóloga de a bordo">
+        <button class="vorb vorb--paze" data-state="idle" aria-label="${L('Empezar a hablar con Paze, la psicóloga de a bordo', 'Start talking to Paze, the on-board psychologist')}">
           <span class="paze-host"></span>
         </button>
         <p class="vorb__label" aria-live="polite">${ORB_STATE.idle}</p>
-        <label class="noisy"><input type="checkbox" data-act="noisy" ${saved.noisy ? 'checked' : ''}/> <span>Sala con ruido: mantén pulsado el orbe para hablar</span></label>
+        <label class="noisy"><input type="checkbox" data-act="noisy" ${saved.noisy ? 'checked' : ''}/> <span>${L('Sala con ruido: mantén pulsado el orbe para hablar', 'Noisy room: hold the orb to talk')}</span></label>
         <div class="captions" aria-live="polite"><p class="cap cap--me"></p><p class="cap cap--ai"></p></div>
         <div class="row voice__ctl" hidden>
-          <button class="btn btn--line" data-act="mute">Silenciar micro</button>
-          <button class="btn btn--dark" data-act="hang">Colgar</button>
+          <button class="btn btn--line" data-act="mute">${L('Silenciar micro', 'Mute mic')}</button>
+          <button class="btn btn--dark" data-act="hang">${L('Colgar', 'Hang up')}</button>
         </div>
-        <p class="fine voice__note">${micAvailable() ? 'Conoce tus datos de XPaze (chequeos, historial, constantes y Mente) para entenderte mejor; nunca tu diario. No se guarda nada de la conversación.' : 'Este navegador no deja usar el micrófono aquí (hace falta https). Usa el modo texto.'}</p>
+        <p class="fine voice__note">${micAvailable() ? L('Conoce tus datos de XPaze (chequeos, historial, constantes y Mente) para entenderte mejor; nunca tu diario. No se guarda nada de la conversación.', 'Paze knows your XPaze data (check-ups, history, vitals and Mind) to understand you better, never your journal. The conversation is not stored.') : L('Este navegador no deja usar el micrófono aquí (hace falta https). Usa el modo texto.', 'This browser does not allow the microphone here (https is required). Use text mode.')}</p>
       </div>` : `
       <div class="chat-list" role="log" aria-live="polite">
-        <div class="msg msg--ai"><p>Hola${S.person ? `, ${esc(S.person.name.split(' ')[0])}` : ''}. Soy Paze, la psicóloga de a bordo. ${(saved.memory[S.person?.uid] || []).length ? 'Me alegra verte de nuevo. ' : ''}Puedes contarme cómo estás, qué te preocupa o simplemente desahogarte. ¿Cómo te encuentras hoy?</p></div>
+        <div class="msg msg--ai"><p>${L('Hola', 'Hi')}${S.person ? `, ${esc(S.person.name.split(' ')[0])}` : ''}. ${L('Soy Paze, la psicóloga de a bordo.', 'I’m Paze, the on-board psychologist.')} ${(saved.memory[S.person?.uid] || []).length ? L('Me alegra verte de nuevo. ', 'Good to see you again. ') : ''}${L('Puedes contarme cómo estás, qué te preocupa o simplemente desahogarte. ¿Cómo te encuentras hoy?', 'You can tell me how you are, what worries you, or just let off steam. How are you feeling today?')}</p></div>
         ${C.history.map((m) => `<div class="msg msg--${m.role === 'user' ? 'me' : 'ai'}"><p>${esc(m.content)}</p></div>`).join('')}
       </div>
-      <div class="chips-row">${['Últimamente duermo fatal', 'Me siento lejos de todos', 'He discutido con un compañero'].map((s) => `<button class="chip-btn" data-say="${esc(s)}">${esc(s)}</button>`).join('')}</div>
-      <div class="compose"><textarea rows="2" maxlength="2000" placeholder="Escribe lo que quieras contar…" aria-label="Mensaje"></textarea><button class="btn btn--dark" data-act="send">Enviar</button></div>
-      <p class="fine">Es una IA de apoyo: no diagnostica ni receta. Al salir, guarda en este dispositivo un resumen breve para recordar la sesión; nunca tu diario.</p>`}
+      <div class="chips-row">${L(['Últimamente duermo fatal', 'Me siento lejos de todos', 'He discutido con un compañero'], ['I’ve been sleeping badly lately', 'I feel far from everyone', 'I had an argument with a crewmate']).map((s) => `<button class="chip-btn" data-say="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+      <div class="compose"><textarea rows="2" maxlength="2000" placeholder="${L('Escribe lo que quieras contar…', 'Write whatever you want to share…')}" aria-label="${L('Mensaje', 'Message')}"></textarea><button class="btn btn--dark" data-act="send">${L('Enviar', 'Send')}</button></div>
+      <p class="fine">${L('Es una IA de apoyo: no diagnostica ni receta. Al salir, guarda en este dispositivo un resumen breve para recordar la sesión; nunca tu diario.', 'A support AI: it does not diagnose or prescribe. When you leave, it saves a short summary on this device to remember the session, never your journal.')}</p>`}
       ${memoryBox()}
-      <button class="btn btn--ghost btn--block" data-act="home">Volver</button>
+      <button class="btn btn--ghost btn--block" data-act="home">${L('Volver', 'Back')}</button>
     </section>`);
   const crisis = node.querySelector('.crisis-box');
   const flagCrisis = (text) => { if (CRISIS.test(text)) crisis.hidden = false; };
   node.querySelector('[data-act="forget"]')?.addEventListener('click', () => {
-    if (!confirm('¿Borrar lo que Paze recuerda de tus sesiones anteriores?')) return;
+    if (!confirm(L('¿Borrar lo que Paze recuerda de tus sesiones anteriores?', 'Delete what Paze remembers from your previous sessions?'))) return;
     delete saved.memory[S.person?.uid]; delete saved.facts[S.person?.uid]; store.save(saved); render();
   });
   node.querySelector('[data-act="about"]')?.addEventListener('input', (e) => {
@@ -1167,13 +1208,13 @@ function memoryBox() {
   const uid = S.person?.uid;
   const mem = saved.memory[uid] || [];
   const facts = saved.facts[uid] || [];
-  return `<details class="memory"><summary>Lo que Paze sabe de ti${mem.length || facts.length ? ` (${facts.length} datos · ${mem.length} sesiones)` : ''}</summary>
-    <label class="about"><span>Sobre mí (opcional): cómo prefieres que te hable, qué te ayuda, qué te preocupa…</span>
-      <textarea rows="3" maxlength="1500" data-act="about" placeholder="Ej.: prefiero que vaya al grano; me ayuda salir a correr; estos días me preocupa la presentación.">${esc(saved.about[uid] || '')}</textarea></label>
-    ${facts.length ? `<p class="fine"><b>Lo que ha aprendido de ti</b></p><ul>${facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
-    ${mem.length ? `<p class="fine"><b>Sesiones anteriores</b></p><ul>${mem.slice().reverse().map((m) => `<li><small>${new Date(m.at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>${esc(m.summary)}</li>`).join('')}</ul>` : ''}
-    <p class="fine">Todo esto se guarda solo en este dispositivo.</p>
-    ${mem.length || facts.length ? '<button class="chip-btn" data-act="forget">Olvidar todo</button>' : ''}</details>`;
+  return `<details class="memory"><summary>${L('Lo que Paze sabe de ti', 'What Paze knows about you')}${mem.length || facts.length ? L(` (${facts.length} datos · ${mem.length} sesiones)`, ` (${facts.length} facts · ${mem.length} sessions)`) : ''}</summary>
+    <label class="about"><span>${L('Sobre mí (opcional): cómo prefieres que te hable, qué te ayuda, qué te preocupa…', 'About me (optional): how you like to be spoken to, what helps you, what worries you…')}</span>
+      <textarea rows="3" maxlength="1500" data-act="about" placeholder="${L('Ej.: prefiero que vaya al grano; me ayuda salir a correr; estos días me preocupa la presentación.', 'E.g. I prefer you get to the point; running helps me; I am worried about the presentation these days.')}">${esc(saved.about[uid] || '')}</textarea></label>
+    ${facts.length ? `<p class="fine"><b>${L('Lo que ha aprendido de ti', 'What it has learned about you')}</b></p><ul>${facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+    ${mem.length ? `<p class="fine"><b>${L('Sesiones anteriores', 'Previous sessions')}</b></p><ul>${mem.slice().reverse().map((m) => `<li><small>${new Date(m.at).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>${esc(m.summary)}</li>`).join('')}</ul>` : ''}
+    <p class="fine">${L('Todo esto se guarda solo en este dispositivo.', 'All of this is stored only on this device.')}</p>
+    ${mem.length || facts.length ? `<button class="chip-btn" data-act="forget">${L('Olvidar todo', 'Forget everything')}</button>` : ''}</details>`;
 }
 
 function wireVoice(node, flagCrisis) {
@@ -1220,15 +1261,15 @@ function wireVoice(node, flagCrisis) {
     } catch (e) {
       v.stop();
       setState('error');
-      label.textContent = e?.name === 'NotAllowedError' ? 'Permiso de micrófono denegado. Actívalo o usa el modo texto.' : (e?.message || 'No se pudo conectar.');
+      label.textContent = e?.name === 'NotAllowedError' ? L('Permiso de micrófono denegado. Actívalo o usa el modo texto.', 'Microphone permission denied. Allow it or use text mode.') : (e?.message || L('No se pudo conectar.', 'Could not connect.'));
     }
   };
-  node.querySelector('[data-act="hang"]').onclick = () => S.voice?.stop('Conversación terminada.');
+  node.querySelector('[data-act="hang"]').onclick = () => S.voice?.stop(L('Conversación terminada.', 'Conversation ended.'));
   node.querySelector('[data-act="mute"]').onclick = (e) => {
     if (!S.voice) return;
     const m = !S.voice.muted;
     S.voice.setMuted(m);
-    e.currentTarget.textContent = m ? 'Activar micro' : 'Silenciar micro';
+    e.currentTarget.textContent = m ? L('Activar micro', 'Unmute mic') : L('Silenciar micro', 'Mute mic');
   };
 }
 
@@ -1247,11 +1288,11 @@ function wireText(node, C, flagCrisis) {
     out.classList.add('is-typing');
     send.disabled = true;
     try {
-      const reply = await streamAI('psicologa', { messages: C.history, context: buildContext() }, (t) => { out.firstChild.textContent = t; });
+      const reply = await streamAI('psicologa', { messages: C.history, context: buildContext(), lang: lang() }, (t) => { out.firstChild.textContent = t; });
       C.history.push({ role: 'assistant', content: reply });
     } catch (e) {
       C.history.pop();
-      out.firstChild.textContent = e.message === 'rate' ? 'Has enviado muchos mensajes seguidos. Espera unos minutos.' : 'Ahora mismo no puedo conectar con la psicóloga. Habla con el oficial médico o escribe en tu diario.';
+      out.firstChild.textContent = e.message === 'rate' ? L('Has enviado muchos mensajes seguidos. Espera unos minutos.', 'You have sent many messages in a row. Please wait a few minutes.') : L('Ahora mismo no puedo conectar con la psicóloga. Habla con el oficial médico o escribe en tu diario.', 'I cannot reach Paze right now. Talk to the medical officer or write in your journal.');
       out.classList.add('is-off');
     } finally {
       out.classList.remove('is-typing');
@@ -1290,29 +1331,29 @@ function history() {
   const list = (saved.history[p?.uid] || []).slice().reverse();
   const asc = list.slice().reverse();
   const charts = [
-    ['Pulso en reposo (lpm)', asc.map((h) => h.bpm), p?.crew?.hr],
-    ['Tensión sistólica (mmHg)', asc.map((h) => h.bp?.sys ?? null), 120],
-    ['Horas de sueño', asc.map((h) => h.mind?.sleep ?? null), 7],
+    [L('Pulso en reposo (lpm)', 'Resting heart rate (bpm)'), asc.map((h) => h.bpm), p?.crew?.hr],
+    [L('Tensión sistólica (mmHg)', 'Systolic blood pressure (mmHg)'), asc.map((h) => h.bp?.sys ?? null), 120],
+    [L('Horas de sueño', 'Hours of sleep'), asc.map((h) => h.mind?.sleep ?? null), 7],
   ].filter(([, v]) => v.filter((x) => x != null).length >= 2);
   const node = el(`
     <section class="screen hist">
       ${topbar()}
-      <p class="kicker">Historial y tendencias</p>
+      <p class="kicker">${L('Historial y tendencias', 'History and trends')}</p>
       <h2>${esc(p?.name || '')}</h2>
       ${charts.map(([t, v, ref]) => `<div class="trend"><small>${t}</small>${spark(v, ref)}</div>`).join('')}
-      <p class="lead">${list.length >= MIN_PERSONAL ? `Tu pulso ya se compara con tu propia línea base (${list.length} chequeos).` : `Con ${MIN_PERSONAL} chequeos, XPaze compara tu pulso contigo. Llevas ${list.length}.`}</p>
+      <p class="lead">${list.length >= MIN_PERSONAL ? L(`Tu pulso ya se compara con tu propia línea base (${list.length} chequeos).`, `Your heart rate is now compared with your own baseline (${list.length} check-ups).`) : L(`Con ${MIN_PERSONAL} chequeos, XPaze compara tu pulso contigo. Llevas ${list.length}.`, `After ${MIN_PERSONAL} check-ups, XPaze compares your heart rate with you. You have ${list.length}.`)}</p>
       <ul class="hlist">${list.map((h) => `
         <li><span class="dot dot--${LEVEL_CLS[h.overall ?? ['normal', 'watch', 'alert'].indexOf(h.status)] || 'off'}"></span>
-          <span><b>${h.bpm ?? '—'} lpm</b>${h.bp ? ` · ${h.bp.sys}/${h.bp.dia}` : ''}${h.glucose ? ` · ${h.glucose} mg/dL` : ''}${h.sim ? ' · <i>simulado</i>' : ''}</span>
-          <small>${new Date(h.at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></li>`).join('') || '<li class="empty">Aún no hay chequeos.</li>'}</ul>
+          <span><b>${h.bpm ?? '—'} ${L('lpm', 'bpm')}</b>${h.bp ? ` · ${h.bp.sys}/${h.bp.dia}` : ''}${h.glucose ? ` · ${h.glucose} mg/dL` : ''}${h.sim ? ` · <i>${L('simulado', 'simulated')}</i>` : ''}</span>
+          <small>${new Date(h.at).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></li>`).join('') || `<li class="empty">${L('Aún no hay chequeos.', 'No check-ups yet.')}</li>`}</ul>
       <div class="row">
-        <button class="btn btn--dark" data-act="home">Volver</button>
-        ${list.length ? '<button class="btn btn--line" data-act="clear">Borrar historial</button>' : ''}
+        <button class="btn btn--dark" data-act="home">${L('Volver', 'Back')}</button>
+        ${list.length ? `<button class="btn btn--line" data-act="clear">${L('Borrar historial', 'Clear history')}</button>` : ''}
       </div>
     </section>`);
   node.querySelector('[data-act="home"]').onclick = () => go('home');
   node.querySelector('[data-act="clear"]')?.addEventListener('click', () => {
-    if (!confirm(`¿Borrar los ${list.length} chequeos de ${p.name}? No se puede deshacer.`)) return;
+    if (!confirm(L(`¿Borrar los ${list.length} chequeos de ${p.name}? No se puede deshacer.`, `Delete ${p.name}'s ${list.length} check-ups? This cannot be undone.`))) return;
     saved.history[p.uid] = [];
     store.save(saved);
     render();
@@ -1330,7 +1371,7 @@ function spark(raw, ref) {
   const y = (v) => H - pad - ((v - lo) / (hi - lo || 1)) * (H - pad * 2);
   const pts = values.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
   const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tendencia">
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="${L('Tendencia', 'Trend')}">
     ${ref ? `<line x1="${pad}" x2="${W - pad}" y1="${y(ref)}" y2="${y(ref)}" class="spark__ref"/>` : ''}
     <path d="${d}" class="spark__line"/>${pts.map((p) => `<circle cx="${p[0]}" cy="${p[1]}" r="3" class="spark__dot"/>`).join('')}</svg>`;
 }

@@ -91,12 +91,19 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .topnav a { display: block; padding: 8px 12px; border-radius: 999px; font-size: 14px; color: var(--ink-2); text-decoration: none; transition: background 0.2s, color 0.2s; }
 .topnav a:hover { background: var(--paper-2); color: var(--ink); }
 .topnav a.is-on { color: var(--ink); background: var(--paper-2); }
+.lang { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--paper-2); }
+.lang button { min-width: 38px; min-height: 32px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent; font: 600 12px/1 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: 0.04em; color: var(--ink-2); cursor: pointer; transition: background 0.2s, color 0.2s; }
+.lang button:hover { color: var(--ink); }
+.lang button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.lang button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.i18n-wait body { opacity: 0; }
 .progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; }
 .progress i { display: block; height: 100%; background: var(--ink); transform-origin: 0 50%; transform: scaleX(0); }
 
 @media (max-width: 860px) {
   .topbar nav { display: none; }
-  .topbar .btn { margin-left: auto; }
+  .topbar { gap: 12px; }
+  .topbar .lang { margin-left: auto; }
 }
 
 /* --------------------------------------------------- índice lateral -- */
@@ -455,6 +462,7 @@ h3 { font-size: clamp(1.6rem, 1.1rem + 1.8vw, 2.6rem); font-weight: 720; line-he
 
 .foot { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; justify-content: space-between; padding: 32px var(--gutter) 40px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
 .foot p { max-width: 640px; }
+.foot__links a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 
 /* ----------------------------------------------- aparición genérica -- */
 .js .reveal { opacity: 0; transform: translateY(28px); }

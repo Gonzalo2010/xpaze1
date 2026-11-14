@@ -91,6 +91,14 @@ Reglas estrictas
 - Texto plano: sin markdown, sin asteriscos ni almohadillas.`;
 
 const CRISIS = /suicid|matarme|quitarme la vida|no quiero vivir|hacerme da[ñn]o|autolesi|cortarme|kill myself|end my life|hurt myself|self[- ]harm|want to die/i;
+// Idioma de la interfaz: las instrucciones están en español, pero se responde en el idioma elegido.
+const LANG_LINE = {
+  es: '',
+  en: '\nIdioma de la interfaz: INGLÉS. Responde SIEMPRE en inglés natural y cálido (tuteo equivalente: tono cercano), aunque estas instrucciones estén en español. Si la persona escribe en otro idioma, responde en el suyo. En la Tierra, los números de emergencia son el 112 (Europa) o el número local; en España también el 024.',
+};
+const langOf = (body) => (body?.lang === 'en' ? 'en' : 'es');
+const CRISIS_NOTE_EN = '\n\nIf you are in danger right now, talk to the medical officer or the commander immediately. If you are on Earth, call your local emergency number (112 in Europe; in Spain you can also call 024, free and 24/7).';
+const REFUSAL = { es: 'Prefiero no seguir por ahí, pero sigo aquí contigo. ¿Me cuentas cómo te sientes ahora mismo?', en: "I'd rather not go there, but I'm still here with you. How are you feeling right now?" };
 const CRISIS_NOTE = '\n\nSi estás en peligro ahora, habla ya con el oficial médico o el comandante. Si estás en la Tierra, llama al 112; en España también puedes llamar al 024, gratis y a cualquier hora.';
 
 /* ------------------------------------------------------------ límites -- */
@@ -221,8 +229,9 @@ const VOICE_RULES = `Estás hablando POR VOZ en tiempo real. Reglas de voz:
 
 `;
 
-async function mintVoiceSession(context) {
-  const instructions = `${VOICE_RULES}${SYSTEM}\n\nDatos de la persona (privados, solo para contextualizar):\n${context || 'No hay datos disponibles.'}`;
+async function mintVoiceSession(context, lang = 'es') {
+  const rules = lang === 'en' ? VOICE_RULES.replace('en español de España', 'en inglés') : VOICE_RULES;
+  const instructions = `${rules}${SYSTEM}\n\nDatos de la persona (privados, solo para contextualizar):\n${context || 'No hay datos disponibles.'}${LANG_LINE[lang]}${lang === 'en' ? '\nVoz: habla en inglés claro y natural; las reglas de voz de arriba se aplican igual.' : ''}`;
   const r = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
     method: 'POST',
     headers: { Authorization: `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
@@ -235,7 +244,7 @@ async function mintVoiceSession(context) {
           // para interrumpirla se toca el orbe. Con ruido fuerte, la app usa pulsar para hablar.
           input: {
             noise_reduction: { type: 'far_field' },
-            transcription: { model: 'gpt-4o-mini-transcribe', language: 'es' },
+            transcription: { model: 'gpt-4o-mini-transcribe', language: lang },
             turn_detection: { type: 'semantic_vad', eagerness: 'low', interrupt_response: false },
           },
           output: { voice: VOICE_VOICE },
@@ -371,14 +380,14 @@ async function summarize(req, res, ip) {
   if (!allow(ip)) { res.writeHead(429).end(); return; }
   let raw = '';
   for await (const chunk of req) { raw += chunk; if (raw.length > 80_000) { res.writeHead(413).end(); return; } }
-  let msgs;
-  try { msgs = JSON.parse(raw).messages; } catch { msgs = null; }
+  let msgs, lang = 'es';
+  try { const b = JSON.parse(raw); msgs = b.messages; lang = langOf(b); } catch { msgs = null; }
   if (!Array.isArray(msgs) || msgs.length < 2) { res.writeHead(400).end(); return; }
   const transcript = msgs.slice(-60).map((m) => `${m.role === 'user' ? 'Persona' : 'Paze'}: ${str(String(m.content ?? ''), 1500)}`).join('\n');
   try {
     const r = await client.messages.create({
       model: MODEL, max_tokens: 1200, output_config: { effort: 'low' }, system: SUMMARY,
-      messages: [{ role: 'user', content: `Conversación:\n${transcript}` }],
+      messages: [{ role: 'user', content: `${lang === 'en' ? 'Escribe summary y facts en INGLÉS.\n' : ''}Conversación:\n${transcript}` }],
     });
     const text = r.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
     let out = { summary: text, facts: [] };
@@ -432,11 +441,17 @@ const server = http.createServer(async (req, res) => {
   let body = null;
   try { body = JSON.parse(raw); input = route === 'chat' ? withVoice(clean(body), body) : route === 'explain' ? cleanCheck(body) : { context: cleanContext(body?.context) }; } catch { input = null; }
   if (!input) { res.writeHead(400).end(); return; }
+  const lang = langOf(body);
+  if (lang !== 'es') input.context = `${input.context || ''}${LANG_LINE[lang]}`;
+  if (lang === 'en' && route === 'explain') {
+    input.system = EXPLAINER.replaceAll('en español sencillo', 'en INGLÉS sencillo (plain English)') + LANG_LINE.en;
+    input.messages = [{ role: 'user', content: 'Explain the result of my check-up.' }];
+  }
 
   if (route === 'voice') {
     stats.voiceSessions = (stats.voiceSessions || 0) + 1;
     try {
-      const out = await mintVoiceSession(input.context);
+      const out = await mintVoiceSession(input.context, lang);
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(out));
     } catch (e) {
       stats.errors += 1;
@@ -458,7 +473,7 @@ const server = http.createServer(async (req, res) => {
     for await (const text of gen) {
       if (aborted) break;
       if (text === '\u0000refusal') {
-        if (!wrote) sse(res, { type: 'text', text: 'Prefiero no seguir por ahí, pero sigo aquí contigo. ¿Me cuentas cómo te sientes ahora mismo?' });
+        if (!wrote) sse(res, { type: 'text', text: REFUSAL[lang] });
         wrote = true;
         continue;
       }
@@ -467,12 +482,12 @@ const server = http.createServer(async (req, res) => {
       sse(res, { type: 'text', text });
     }
     // Recursos de crisis siempre visibles si el mensaje los sugiere, diga lo que diga el modelo.
-    if (crisis && !aborted && !/\b(112|024)\b/.test(said)) sse(res, { type: 'text', text: CRISIS_NOTE });
+    if (crisis && !aborted && !/\b(112|024)\b/.test(said)) sse(res, { type: 'text', text: lang === 'en' ? CRISIS_NOTE_EN : CRISIS_NOTE });
     if (!aborted) sse(res, { type: 'done' });
   } catch (e) {
     stats.errors += 1;
     console.error(`[psicologa] ${errorCode(e)}: ${e?.status || ''} ${String(e?.message || e).slice(0, 160)}`);
-    if (crisis && !aborted) sse(res, { type: 'text', text: CRISIS_NOTE.trim() });
+    if (crisis && !aborted) sse(res, { type: 'text', text: (lang === 'en' ? CRISIS_NOTE_EN : CRISIS_NOTE).trim() });
     if (!aborted) sse(res, { type: 'error', code: errorCode(e) });
   }
   res.end();

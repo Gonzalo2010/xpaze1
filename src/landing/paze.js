@@ -2,11 +2,12 @@
 // guionizada corta que se escribe al llegar. Solo se anima mientras está en pantalla.
 
 import { PazeOrb } from '../app/paze-orb.js';
+import { t } from './i18n.js';
 
 const SCRIPT = [
-  { who: 'paze', mood: 'atencion', text: 'Buenas noches, Lía. Tu reloj marca cuatro noches durmiendo menos y hoy hay aviso de clima espacial. No es una alarma: ¿cómo lo estás llevando?' },
-  { who: 'me', text: 'Agotada. Y en el refugio me agobio.' },
-  { who: 'paze', mood: 'empatia', text: 'Tiene todo el sentido: poco sueño y horas de encierro pesan a cualquiera. ¿Probamos algo pequeño? Un minuto respirando 4 y 6, aquí conmigo.' },
+  { who: 'paze', mood: 'atencion', text: t('paze.l1') },
+  { who: 'me', text: t('paze.l2') },
+  { who: 'paze', mood: 'empatia', text: t('paze.l3') },
 ];
 
 // Amplitud de «boca» por letra, para que el orbe se mueva al «hablar».

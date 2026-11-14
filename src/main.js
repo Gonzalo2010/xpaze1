@@ -5,6 +5,10 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import { marsLight } from './mars.js';
+import { initI18n, t, locale } from './landing/i18n.js';
+
+// Idioma primero: los textos que montan los módulos de abajo ya salen traducidos.
+const restoreY = initI18n();
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -96,18 +100,18 @@ if (!reduced) {
 {
   const STATES = {
     exercise: {
-      state: 'Normal',
-      why: 'Acaba de entrenar. Un pulso alto ahora es lo esperable, y bajará en unos minutos.',
+      state: t('ctx.exercise.state'),
+      why: t('ctx.exercise.why'),
       f: { act: 1, base: 0.35, other: 0.05, time: 0.15 },
     },
     rest: {
-      state: 'A vigilar',
-      why: 'En reposo, 108 ppm es un 74 % más que su normal. XPaze lo anota y pide repetir el chequeo.',
+      state: t('ctx.rest.state'),
+      why: t('ctx.rest.why'),
       f: { act: 0.05, base: 0.85, other: 0.15, time: 0.4 },
     },
     ill: {
-      state: 'Alerta',
-      why: 'Pulso alto en reposo, algo de fiebre y mala noche, y lleva así un rato. Varias señales a la vez: avisa y explica.',
+      state: t('ctx.ill.state'),
+      why: t('ctx.ill.why'),
       f: { act: 0.05, base: 0.9, other: 0.85, time: 0.9 },
     },
   };
@@ -184,7 +188,7 @@ if (!reduced) {
   const ring = el('circle', { class: 'spike-ring', cx: x(DAYS), cy: y(84), r: 16 });
   const dot = el('circle', { class: 'spike', cx: x(DAYS), cy: y(84), r: 7 });
   const label = el('text', { class: 'spike-label', x: x(DAYS) - 24, y: y(84) - 8, 'text-anchor': 'end' });
-  label.textContent = '84 ppm';
+  label.textContent = `84 ${t('unit.bpm')}`;
   const len = line.getTotalLength();
   line.style.strokeDasharray = len;
 
@@ -237,15 +241,15 @@ if (!reduced) {
   let times = [], timer = 0, shownAt = 0;
   const setState = (s, m) => { box.dataset.state = s; msg.textContent = m; };
   function next() {
-    setState('wait', `Espera… ${times.length + 1} de ${N}`);
-    timer = setTimeout(() => { shownAt = performance.now(); setState('go', '¡Ya!'); }, 1400 + Math.random() * 2400);
+    setState('wait', t('pvt.wait', { n: times.length + 1, total: N }));
+    timer = setTimeout(() => { shownAt = performance.now(); setState('go', t('pvt.go')); }, 1400 + Math.random() * 2400);
   }
   function finish() {
     const mean = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
     const best = Math.round(Math.min(...times));
     const lapses = times.filter((t) => t > 355).length; // umbral de la PVT-B
-    out.textContent = `Media ${mean} ms · mejor ${best} ms · ${lapses} ${lapses === 1 ? 'lapso' : 'lapsos'} (más de 355 ms)`;
-    setState('idle', 'Repetir');
+    out.textContent = t('pvt.result', { mean, best, lapses, lapseWord: t(lapses === 1 ? 'pvt.lapse' : 'pvt.lapses') });
+    setState('idle', t('pvt.again'));
   }
   pad.addEventListener('pointerdown', (e) => {
     e.preventDefault();
@@ -253,7 +257,7 @@ if (!reduced) {
     if (st === 'idle') { times = []; out.textContent = ''; next(); }
     else if (st === 'wait') {
       clearTimeout(timer);
-      setState('early', 'Demasiado pronto. Otra vez…');
+      setState('early', t('pvt.early'));
       timer = setTimeout(next, 900);
     } else if (st === 'go') {
       const rt = performance.now() - shownAt;
@@ -278,18 +282,18 @@ if (!reduced) {
     tl?.kill(); tl = null;
     gsap.to(ring, { scale: 0.75, duration: 0.6 });
     box.dataset.state = 'idle';
-    msg.textContent = 'Empezar';
+    msg.textContent = t('breath.start');
     out.textContent = text || '';
   }
   pad.addEventListener('click', () => {
-    if (tl) { stop('Pausado. Puedes volver a empezar cuando quieras.'); return; }
+    if (tl) { stop(t('breath.paused')); return; }
     box.dataset.state = 'run';
     out.textContent = '';
-    tl = gsap.timeline({ onComplete: () => stop('Hecho. Un minuto, seis respiraciones.') });
+    tl = gsap.timeline({ onComplete: () => stop(t('breath.done')) });
     for (let i = 0; i < 6; i++) {
-      tl.call(() => { msg.textContent = `Inspira · ${6 - i} de 6`; })
+      tl.call(() => { msg.textContent = t('breath.in', { n: 6 - i }); })
         .to(ring, { scale: 1.6, duration: 4, ease: 'sine.inOut' })
-        .call(() => { msg.textContent = `Espira · ${6 - i} de 6`; })
+        .call(() => { msg.textContent = t('breath.out', { n: 6 - i }); })
         .to(ring, { scale: 0.75, duration: 6, ease: 'sine.inOut' });
     }
   });
@@ -301,7 +305,7 @@ if (!reduced) {
   const fmt = (sec) => { const mm = Math.floor(sec / 60), ss = Math.round(sec % 60); return `${mm} min ${String(ss).padStart(2, '0')} s`; };
   $('[data-mars="oneway"]').textContent = fmt(m.seconds);
   $('[data-mars="round"]').textContent = fmt(m.seconds * 2);
-  $('[data-mars="km"]').textContent = Math.round(m.km / 1e6).toLocaleString('es-ES');
+  $('[data-mars="km"]').textContent = Math.round(m.km / 1e6).toLocaleString(locale());
   if (!reduced) {
     gsap.fromTo('.light__photon', { left: '0%' }, {
       left: '100%', ease: 'none',
@@ -452,4 +456,11 @@ import('./stage.js').then(({ createStage }) => {
   ScrollTrigger.refresh();
 }).catch(noWebGL);
 
-window.addEventListener('load', () => ScrollTrigger.refresh());
+window.addEventListener('load', () => {
+  ScrollTrigger.refresh();
+  // tras cambiar de idioma, vuelve al punto donde estaba
+  if (restoreY != null && restoreY > 0) {
+    if (lenis) lenis.scrollTo(restoreY, { immediate: true, force: true });
+    else window.scrollTo(0, restoreY);
+  }
+});

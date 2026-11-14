@@ -1,7 +1,7 @@
 // Service worker de la app XPaze: funciona sin conexión una vez abierta.
 // Navegación: red primero (para recibir versiones nuevas) y copia guardada si no hay red.
 // Ficheros con hash de /assets/ e iconos: copia guardada primero.
-const CACHE = 'xpaze-app-v1';
+const CACHE = 'xpaze-app-v2';
 const SHELL = ['/app/', '/app/manifest.webmanifest', '/app/icon-192.png', '/logo-mark-dark.png'];
 
 self.addEventListener('install', (e) => {

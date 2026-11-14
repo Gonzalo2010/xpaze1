@@ -1,8 +1,8 @@
 {
   "name": "XPaze",
   "short_name": "XPaze",
-  "description": "Conecta con la XPaze Station por Bluetooth, mide y compara contigo.",
-  "lang": "es",
+  "description": "Connect to the XPaze Station over Bluetooth, measure and compare with yourself.",
+  "lang": "en",
   "id": "/app/",
   "start_url": "/app/",
   "scope": "/app/",

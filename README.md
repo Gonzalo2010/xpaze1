@@ -2,7 +2,7 @@
 
 XPaze learns what is normal for each astronaut, notices when that changes and explains why, without depending on Earth. It is a research prototype, not a medical device.
 
-**Live:** https://xpaze.es · **App:** https://xpaze.es/app/ · Spanish documentation: [README.es.md](README.es.md)
+**Live:** https://xpaze.es · **App (the demo):** https://xpaze.es/app/ (English by default, Spanish available; `/demo/` redirects here) · Spanish documentation: [README.es.md](README.es.md)
 
 ## What is built
 

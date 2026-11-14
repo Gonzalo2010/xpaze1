@@ -6,13 +6,9 @@
 :5190 {
 	# Todo público. La IA tiene límites por IP y por día en server/psicologa.js.
 
-	@demoai path /demo/api/psicologa /demo/api/voz/sesion
-	handle @demoai {
-		uri strip_prefix /demo
-		reverse_proxy 127.0.0.1:5193 {
-			flush_interval -1
-		}
-	}
+	# Una sola demo: la app nueva. La demo antigua redirige.
+	@demo path /demo /demo/*
+	redir @demo /app/ 302
 
 	# IA de la app (pública, con límites por IP y día en server/psicologa.js)
 	@appai path /app/api/espacio /app/api/psicologa /app/api/explicar /app/api/salud /app/api/salud/* /app/api/voz/sesion

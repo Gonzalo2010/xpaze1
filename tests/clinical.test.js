@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classify, actionPlan, cabinLevel, MEASURES, ENVIRONMENTS } from '../src/app/clinical.js';
+import { classify, actionPlan, cabinLevel, MEASURES, ENVIRONMENTS, RED_FLAGS, PHQ2, isSelfHarm } from '../src/app/clinical.js';
+import { setLang } from '../src/app/i18n.js';
+
+// Los textos se comprueban en español; al final, los mismos casos en inglés.
+setLang('es');
 
 const lvl = (id, v) => classify(id, v).level;
 
@@ -73,4 +77,24 @@ test('la guía solo da consejos de la dirección correcta (bajo o alto)', () => 
   assert.doesNotMatch(bpHigh, /horizontal/);
   assert.equal(classify('hr', 30).dir, 'low');
   assert.equal(classify('hr', 140).dir, 'high');
+});
+
+test('en inglés: mismos colores, textos y guía en inglés', () => {
+  setLang('en');
+  try {
+    assert.equal(classify('hr', 140).level, 2);
+    assert.match(classify('hr', 140).reason, /bpm is very high at rest/);
+    assert.equal(MEASURES.hr.name, 'Resting heart rate');
+    const red = actionPlan([classify('glucose', 45)], 'transit');
+    assert.ok(red.now.some((x) => /fast-acting sugar/.test(x)));
+    assert.match(red.surgeon, /flight surgeon/);
+    assert.equal(red.evac, ENVIRONMENTS.transit.evac);
+    assert.match(RED_FLAGS[0], /Chest pain/);
+    assert.match(PHQ2[1], /hopeless/);
+    assert.ok(isSelfHarm(RED_FLAGS[3]));
+    for (const [id, m] of Object.entries(MEASURES)) {
+      const text = [m.name, m.why, ...m.steps, m.range.yellow].join(' ');
+      assert.doesNotMatch(text, /[áéíóúñ¿¡]|\b(de|la|el|en|que|para)\b/i, id);
+    }
+  } finally { setLang('es'); }
 });

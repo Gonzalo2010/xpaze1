@@ -38,3 +38,12 @@ test('cinturón de radiación: informativo en la estación, ignorado en tránsit
   assert.equal(assessSpace([{ type: 'RBE', time: ago(5) }], 'station', NOW).reasons.length, 1);
   assert.equal(assessSpace([{ type: 'RBE', time: ago(5) }], 'transit', NOW).reasons.length, 0);
 });
+
+test('en inglés: mismo nivel, textos en inglés', () => {
+  const ev = [{ type: 'SEP', time: ago(10) }];
+  const en = assessSpace(ev, 'transit', NOW, 'en');
+  assert.equal(en.level, assessSpace(ev, 'transit', NOW, 'es').level);
+  assert.match(en.actions[0], /radiation shelter/);
+  assert.match(en.headline, /Radiation alert/);
+  assert.match(assessSpace([{ type: 'GST', time: ago(5), kp: 5.67 }], 'station', NOW, 'en').reasons[0].text, /Moderate geomagnetic storm \(Kp 5\.7\)/);
+});

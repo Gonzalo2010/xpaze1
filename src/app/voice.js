@@ -6,6 +6,7 @@
 // Emite: onState(estado) · onLevel(0–1) · onCaption({who, text, final}) · onEnd(motivo).
 // Estados: idle · connecting · listening · user · thinking · speaking · error.
 
+import { L, lang } from './i18n.js';
 import { streamAI } from './ai.js';
 
 export const CRISIS = /suicid|matarme|quitarme la vida|no quiero vivir|hacerme da[ñn]o|autolesi|cortarme|kill myself|end my life|hurt myself|self[- ]harm|want to die/i;
@@ -39,23 +40,23 @@ export class VoiceSession {
 
   async start() {
     this.set('connecting');
-    if (!micAvailable()) throw new Error('Para hablar hace falta el micrófono y una conexión segura (https).');
+    if (!micAvailable()) throw new Error(L('Para hablar hace falta el micrófono y una conexión segura (https).', 'Voice needs the microphone and a secure (https) connection.'));
     this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     this.meter(this.stream, 'mic');
     let session = null;
     try {
       const r = await fetch(new URL('api/voz/sesion', location.href), {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context: this.context() }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context: this.context(), lang: lang() }),
       });
-      if (r.status === 429) throw new Error('Has usado muchas sesiones seguidas. Espera unos minutos.');
+      if (r.status === 429) throw new Error(L('Has usado muchas sesiones seguidas. Espera unos minutos.', 'You have started many sessions in a row. Please wait a few minutes.'));
       if (r.ok) session = await r.json();
     } catch (e) {
-      if (/sesiones/.test(e.message)) throw e;
+      if (/sesiones|sessions/.test(e.message)) throw e;
     }
     if (session?.key) {
       try { await this.startRealtime(session); return; } catch (e) { console.warn('[voz] realtime:', e); this.closeRtc(); }
     }
-    if (!speechFallbackAvailable()) throw new Error('La voz en directo no está disponible ahora y este navegador no tiene reconocimiento de voz. Usa el modo texto.');
+    if (!speechFallbackAvailable()) throw new Error(L('La voz en directo no está disponible ahora y este navegador no tiene reconocimiento de voz. Usa el modo texto.', 'Live voice is not available right now and this browser has no speech recognition. Use text mode.'));
     this.startSpeech();
   }
 
@@ -69,7 +70,7 @@ export class VoiceSession {
     pc.ontrack = (e) => { this.audio.srcObject = e.streams[0]; this.meter(e.streams[0], 'ai'); };
     pc.addTrack(this.stream.getAudioTracks()[0], this.stream);
     pc.onconnectionstatechange = () => {
-      if (['failed', 'closed'].includes(pc.connectionState) && !this.ended) this.stop('Se ha cortado la conexión.');
+      if (['failed', 'closed'].includes(pc.connectionState) && !this.ended) this.stop(L('Se ha cortado la conexión.', 'The connection dropped.'));
     };
     const dc = pc.createDataChannel('oai-events');
     this.dc = dc;
@@ -86,7 +87,7 @@ export class VoiceSession {
     // que salude ella primero
     dc.send(JSON.stringify({ type: 'response.create' }));
     this.set('thinking');
-    this.timer = setTimeout(() => this.stop('Fin de la sesión (10 minutos). Puedes empezar otra.'), (maxSeconds || 600) * 1000);
+    this.timer = setTimeout(() => this.stop(L('Fin de la sesión (10 minutos). Puedes empezar otra.', 'Session ended (10 minutes). You can start another one.')), (maxSeconds || 600) * 1000);
   }
 
   /* ---------------------------------------- interrumpir y pulsar para hablar -- */
@@ -153,7 +154,7 @@ export class VoiceSession {
         if (ev.transcript?.trim()) this.onCaption?.({ who: 'me', text: ev.transcript.trim(), final: true });
         break;
       case 'response.done': if (this.state === 'thinking') this.set('listening'); break;
-      case 'error': console.warn('[voz] error', ev.error); if (/expired|session/i.test(ev.error?.message || '')) this.stop('La sesión ha caducado.'); break;
+      case 'error': console.warn('[voz] error', ev.error); if (/expired|session/i.test(ev.error?.message || '')) this.stop(L('La sesión ha caducado.', 'The session has expired.')); break;
       default: break;
     }
   }
@@ -162,7 +163,7 @@ export class VoiceSession {
   startSpeech() {
     this.mode = 'speech';
     this.rec = new SR();
-    this.rec.lang = 'es-ES';
+    this.rec.lang = L('es-ES', 'en-GB');
     this.rec.interimResults = true;
     this.rec.continuous = false;
     this.rec.onstart = () => this.set('listening');
@@ -173,7 +174,7 @@ export class VoiceSession {
       this.onCaption?.({ who: 'me', text, final: r.isFinal });
       if (r.isFinal && text) this.reply(text);
     };
-    this.rec.onerror = (e) => { if (e.error === 'not-allowed') this.stop('Permiso de micrófono denegado.'); };
+    this.rec.onerror = (e) => { if (e.error === 'not-allowed') this.stop(L('Permiso de micrófono denegado.', 'Microphone permission denied.')); };
     this.rec.onend = () => { if (!this.ended && this.state === 'listening') this.listen(); };
     this.greet();
   }
@@ -185,7 +186,7 @@ export class VoiceSession {
 
   async greet() {
     const name = (this.context().name || '').split(' ')[0];
-    await this.say(`Hola${name ? `, ${name}` : ''}. Soy Paze, la psicóloga de a bordo. ¿Cómo estás hoy?`);
+    await this.say(L(`Hola${name ? `, ${name}` : ''}. Soy Paze, la psicóloga de a bordo. ¿Cómo estás hoy?`, `Hi${name ? `, ${name}` : ''}. I'm Paze, the on-board psychologist. How are you today?`));
   }
 
   async reply(text) {
@@ -194,12 +195,12 @@ export class VoiceSession {
     try { this.rec.stop(); } catch { /* nada */ }
     let out = '';
     try {
-      out = await streamAI('psicologa', { voice: true, messages: this.history, context: this.context() },
+      out = await streamAI('psicologa', { voice: true, messages: this.history, context: this.context(), lang: lang() },
         (t) => this.onCaption?.({ who: 'ai', text: t, final: false }));
       this.history.push({ role: 'assistant', content: out });
     } catch (e) {
       this.history.pop();
-      out = e.message === 'rate' ? 'Has hablado mucho seguido. Espera unos minutos.' : 'Ahora mismo no puedo conectar. Prueba de nuevo en un momento.';
+      out = e.message === 'rate' ? L('Has hablado mucho seguido. Espera unos minutos.', 'You have talked a lot in a row. Please wait a few minutes.') : L('Ahora mismo no puedo conectar. Prueba de nuevo en un momento.', 'I cannot connect right now. Try again in a moment.');
     }
     await this.say(out);
   }
@@ -208,8 +209,9 @@ export class VoiceSession {
     this.onCaption?.({ who: 'ai', text, final: true });
     return new Promise((resolve) => {
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'es-ES';
-      const v = speechSynthesis.getVoices().find((x) => x.lang?.startsWith('es-ES')) || speechSynthesis.getVoices().find((x) => x.lang?.startsWith('es'));
+      const tag = L('es-ES', 'en-GB');
+      u.lang = tag;
+      const v = speechSynthesis.getVoices().find((x) => x.lang?.startsWith(tag)) || speechSynthesis.getVoices().find((x) => x.lang?.startsWith(tag.slice(0, 2)));
       if (v) u.voice = v;
       u.rate = 1.02;
       // speechSynthesis no da audio analizable: el orbe late con un pulso suave mientras habla
@@ -294,7 +296,7 @@ export function bindOrbControls(orb, getSession) {
 
 // Texto bajo el orbe según el estado y el modo.
 export function orbLabel(st, v, base) {
-  if (v?.ptt && st === 'listening') return 'Mantén pulsado el orbe para hablar';
+  if (v?.ptt && st === 'listening') return L('Mantén pulsado el orbe para hablar', 'Hold the orb to talk');
   if (v?.ptt && st === 'user') return 'Te escucho… suelta al terminar';
   if (st === 'speaking') return 'Hablando · toca el orbe para interrumpir';
   return base[st] || st;
