@@ -1,0 +1,21 @@
+# dependencias y compilados
+node_modules/
+dist/
+.dist-*/
+# secretos y datos personales: NUNCA al repositorio
+.env
+.env.*
+.data/
+Caddyfile
+# pruebas, capturas y descargas locales
+.shots/
+tests/ai/psicologa-eval-results.json
+# Python
+__pycache__/
+.venv*/
+# Android
+android/**/build/
+android/**/.gradle/
+android/**/local.properties
+*.apk
+*.log

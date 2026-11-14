@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>XPaze Demo — Chequeo de salud para astronautas</title>
+  <meta name="description" content="Demo interactiva de XPaze: haz un chequeo simulado, entiende el resultado y mira cómo calculan los algoritmos. Datos simulados; no diagnostica." />
+  <meta name="theme-color" content="#f5f6f8" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="XPaze Demo" />
+  <meta property="og:description" content="Haz un chequeo simulado y mira cómo lo explica XPaze. Datos simulados; no diagnostica." />
+  <meta property="og:image" content="/og.jpg" />
+  <link rel="icon" href="/favicon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mona+Sans:wdth,wght@75..125,200..900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/demo/demo.css" />
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <div id="app">
+    <noscript><p style="padding:120px 24px;text-align:center">La demo de XPaze necesita JavaScript. · The XPaze demo needs JavaScript.</p></noscript>
+  </div>
+  <div id="toast" class="toast glass" role="status" aria-live="polite"></div>
+  <script type="module" src="/src/demo/main.js"></script>
+</body>
+</html>

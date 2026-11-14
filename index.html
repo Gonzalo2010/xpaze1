@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>XPaze — Salud para quien viaja más allá de la Tierra</title>
+  <meta name="description" content="XPaze aprende cómo es cada astronauta, detecta cuándo deja de estar como siempre y explica por qué. Todo a bordo, sin depender de la Tierra." />
+  <meta name="theme-color" content="#f4f3ef" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="XPaze — Salud para quien viaja más allá de la Tierra" />
+  <meta property="og:description" content="Un sistema que conoce el normal de cada astronauta y explica cualquier cambio. Local, autónomo y continuo." />
+  <meta property="og:image" content="/og.jpg" />
+  <link rel="icon" href="/favicon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mona+Sans:wdth,wght@75..125,300..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <a class="skip" href="#contenido">Saltar al contenido</a>
+
+  <canvas id="station" aria-hidden="true"></canvas>
+
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="XPaze, inicio"><img src="/logo-mark-dark.png" alt="" width="28" height="23" />XPaze</a>
+    <nav aria-label="Principal">
+      <ol class="topnav">
+        <li><a href="#problema">Problema</a></li>
+        <li><a href="#sistema">Sistema</a></li>
+        <li><a href="#mente">Mente</a></li>
+        <li><a href="#dentro">Por dentro</a></li>
+        <li><a href="#datos">Datos NASA</a></li>
+        <li><a href="#prototipo">Prototipo</a></li>
+      </ol>
+    </nav>
+    <a class="btn btn--dark btn--sm" href="/app/">Probar XPaze</a>
+    <div class="progress" aria-hidden="true"><i></i></div>
+  </header>
+
+  <aside class="rail" aria-label="Capítulos">
+    <ol>
+      <li><a href="#problema" data-ch="problema"><b>01</b><span>El problema</span></a></li>
+      <li><a href="#idea" data-ch="idea"><b>02</b><span>La idea</span></a></li>
+      <li><a href="#sistema" data-ch="sistema"><b>03</b><span>El sistema</span></a></li>
+      <li><a href="#normal" data-ch="normal"><b>04</b><span>Tu normal</span></a></li>
+      <li><a href="#mente" data-ch="mente"><b>05</b><span>La mente</span></a></li>
+      <li><a href="#autonomia" data-ch="autonomia"><b>06</b><span>Autonomía</span></a></li>
+      <li><a href="#dentro" data-ch="dentro"><b>07</b><span>Por dentro</span></a></li>
+      <li><a href="#datos" data-ch="datos"><b>08</b><span>Datos NASA</span></a></li>
+      <li><a href="#prototipo" data-ch="prototipo"><b>09</b><span>Prototipo</span></a></li>
+    </ol>
+  </aside>
+
+  <main id="contenido">
+
+    <!-- ============================================================ HERO -->
+    <section class="hero" id="top">
+      <div class="hero__copy">
+        <p class="kicker"><span class="spark" aria-hidden="true"></span>Monitorización de salud para el espacio</p>
+        <h1 class="hero__title">
+          <span class="line"><span>Salud para</span></span>
+          <span class="line"><span>quien viaja</span></span>
+          <span class="line"><span>más allá de</span></span>
+          <span class="line"><span>la Tierra.</span></span>
+        </h1>
+        <ul class="hero__chips" aria-label="Qué hace XPaze">
+          <li>Chequeo guiado</li><li>Semáforo explicable</li><li>Paze, psicóloga por voz</li><li>Clima espacial en directo</li>
+        </ul>
+        <p class="hero__sub">XPaze aprende cómo es cada astronauta, se da cuenta cuando deja de estar como siempre y le explica por qué. Sin cables, sin depender de la Tierra.</p>
+        <div class="hero__cta">
+          <a class="btn btn--dark" href="#problema">Cómo funciona</a>
+          <a class="btn btn--line" href="/app/">Probar XPaze</a>
+        </div>
+      </div>
+      <img class="hero__fallback" src="/img/station-34.webp" alt="La estación XPaze: una caja con dos asideros y un móvil apoyado" width="480" height="480" />
+      <div class="hero__readout" aria-label="Ejemplo de lectura">
+        <div><small>Pulso</small><b data-count="62">62</b><em>ppm</em></div>
+        <div><small>Oxígeno</small><b>98</b><em>%</em></div>
+        <div><small>Temp.</small><b>36,6</b><em>°C</em></div>
+        <div class="ok"><small>Estado</small><b>Normal</b></div>
+      </div>
+      <p class="hero__scroll" aria-hidden="true">Desliza</p>
+    </section>
+
+    <!-- ===================================================== 01 PROBLEMA -->
+    <section class="chapter problem" id="problema" data-chapter="problema">
+      <header class="ch-head">
+        <p class="ch-num">01 — El problema</p>
+        <h2 class="reveal">Un dato suelto<br />dice muy poco.</h2>
+        <p class="lead reveal">Microgravedad, aislamiento, sueño alterado, estrés y meses lejos de cualquier hospital. Los datos de salud existen, pero llegan a trozos y se miran por separado.</p>
+      </header>
+
+      <div class="scatter" aria-label="Señales que hoy se leen por separado">
+        <div class="scatter__stage">
+          <span class="sig" style="--x:-38;--y:-30">Pulso</span>
+          <span class="sig" style="--x:30;--y:-36">Variabilidad cardiaca</span>
+          <span class="sig" style="--x:-12;--y:-42">Temperatura</span>
+          <span class="sig" style="--x:40;--y:6">Oxígeno en sangre</span>
+          <span class="sig" style="--x:-44;--y:10">Sueño</span>
+          <span class="sig" style="--x:18;--y:34">Actividad</span>
+          <span class="sig" style="--x:-26;--y:38">Respiración</span>
+          <span class="sig" style="--x:2;--y:-14">CO₂ de cabina</span>
+          <span class="sig" style="--x:-4;--y:20">Recuperación</span>
+          <div class="scatter__core"><img src="/logo-mark-dark.png" alt="" width="56" height="46" /><b>Una sola lectura</b></div>
+        </div>
+        <p class="scatter__note">Lo importante es lo que pasa <strong>cuando varias cambian a la vez</strong>.<br />XPaze nació para leerlas juntas.</p>
+      </div>
+    </section>
+
+    <!-- ========================================================= 02 IDEA -->
+    <section class="chapter idea" id="idea" data-chapter="idea">
+      <header class="ch-head">
+        <p class="ch-num">02 — La idea</p>
+        <h2 class="reveal">No pregunta cuánto.<br />Pregunta si es normal.</h2>
+        <p class="lead reveal">Otros aparatos te dicen «108 ppm». XPaze se hace una pregunta mucho más útil: ¿es normal que <em>esta persona</em> tenga 108 ppm <em>ahora</em>?</p>
+      </header>
+
+      <div class="ctx reveal" data-ctx="exercise">
+        <div class="ctx__tabs" role="tablist" aria-label="Situación de la astronauta">
+          <button role="tab" aria-selected="true" data-set="exercise">Acaba de entrenar</button>
+          <button role="tab" aria-selected="false" data-set="rest">En reposo</button>
+          <button role="tab" aria-selected="false" data-set="ill">En reposo, dormió mal y 37,6 °C</button>
+        </div>
+        <div class="ctx__body">
+          <div class="ctx__value">
+            <small>Pulso medido</small>
+            <b>108</b><span>ppm</span>
+          </div>
+          <div class="ctx__verdict" aria-live="polite">
+            <p class="ctx__state"></p>
+            <p class="ctx__why"></p>
+          </div>
+          <ul class="ctx__factors">
+            <li><span>Actividad reciente</span><i><b data-f="act"></b></i></li>
+            <li><span>Su pulso normal en reposo: 62 ppm</span><i><b data-f="base"></b></i></li>
+            <li><span>Otras señales alteradas</span><i><b data-f="other"></b></i></li>
+            <li><span>Lleva así un rato</span><i><b data-f="time"></b></i></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================== 03 SISTEMA -->
+    <section class="chapter system" id="sistema" data-chapter="sistema">
+      <header class="ch-head">
+        <p class="ch-num">03 — El sistema</p>
+        <h2 class="reveal">Tres piezas.<br />Una lectura.</h2>
+        <p class="lead reveal">No es otro aparato que llevar puesto. Combina lo que ya hay en la nave con lo que el astronauta ya lleva encima.</p>
+      </header>
+
+      <div class="hscroll">
+        <div class="hscroll__track">
+          <article class="piece">
+            <p class="piece__n">A</p>
+            <div class="piece__art art-station" aria-hidden="true">
+              <svg viewBox="0 0 240 180"><rect x="40" y="96" width="160" height="62" rx="14" class="s-body"/><rect x="104" y="30" width="32" height="70" rx="6" class="s-body"/><rect x="108" y="36" width="24" height="44" rx="4" class="s-screen"/><rect x="22" y="70" width="14" height="80" rx="7" class="s-cu"/><rect x="204" y="70" width="14" height="80" rx="7" class="s-cu"/><circle cx="211" cy="80" r="4" class="s-dot"/><path d="M70 128h20l6-12 8 24 6-12h60" class="s-ecg"/></svg>
+            </div>
+            <h3>La estación XPaze</h3>
+            <p>Fija en la nave o el hábitat. Pasas tu tarjeta, agarras los dos asideros y, en un solo gesto, mide electrocardiograma, pulso, oxígeno y temperatura sin contacto.</p>
+            <ul class="tags"><li>ECG</li><li>Pulso</li><li>SpO₂</li><li>Temperatura</li><li>Aire de cabina</li></ul>
+          </article>
+          <article class="piece">
+            <p class="piece__n">B</p>
+            <div class="piece__art art-watch" aria-hidden="true">
+              <svg viewBox="0 0 240 180"><rect x="96" y="10" width="48" height="40" rx="10" class="s-strap"/><rect x="96" y="130" width="48" height="40" rx="10" class="s-strap"/><rect x="76" y="44" width="88" height="92" rx="26" class="s-body"/><rect x="86" y="54" width="68" height="72" rx="18" class="s-screen"/><path d="M96 92h12l5-10 7 20 5-10h19" class="s-ecg"/></svg>
+            </div>
+            <h3>Su reloj, si lo lleva</h3>
+            <p>Si ya usa un reloj compatible, XPaze añade su pulso, sueño y actividad. Si no lo lleva, todo funciona igual. Es una fuente más, no un requisito.</p>
+            <ul class="tags"><li>Sueño</li><li>Actividad</li><li>Pulso continuo</li></ul>
+          </article>
+          <article class="piece">
+            <p class="piece__n">C</p>
+            <div class="piece__art art-app" aria-hidden="true">
+              <svg viewBox="0 0 240 180"><rect x="80" y="8" width="80" height="164" rx="16" class="s-body"/><rect x="88" y="18" width="64" height="144" rx="10" class="s-screen"/><circle cx="120" cy="66" r="22" class="s-ring"/><rect x="96" y="104" width="28" height="20" rx="5" class="s-tile"/><rect x="128" y="104" width="16" height="20" rx="5" class="s-tile"/><rect x="96" y="130" width="48" height="20" rx="5" class="s-tile"/></svg>
+            </div>
+            <h3>La app</h3>
+            <p>En el móvil de la estación, conectado por WiFi a la Raspberry Pi sin internet. Resume el estado de un vistazo, explica cualquier cambio y cuida también el ánimo y la atención.</p>
+            <ul class="tags"><li>Sin internet</li><li>Explicaciones</li><li>Privacidad</li></ul>
+          </article>
+          <article class="piece piece--gesture">
+            <p class="piece__n">→</p>
+            <h3>Un chequeo, un gesto.</h3>
+            <ol class="gesture">
+              <li><b>Te identifica</b>Pasas tu tarjeta por el lector RFID.</li>
+              <li><b>Asideros con electrodos</b>La cinta de cobre registra tu ECG. En microgravedad, además, te sujetan.</li>
+              <li><b>Pulso y oxígeno</b>Tu pulgar descansa sobre una ventanita del asidero derecho.</li>
+              <li><b>Temperatura sin tocar</b>Comprueba que tu frente está a 1–2 cm y mide.</li>
+            </ol>
+          </article>
+        </div>
+      </div>
+
+      <div class="qc" id="qc">
+        <div class="qc__copy">
+          <p class="kicker"><span class="spark" aria-hidden="true"></span>Pruébalo aquí</p>
+          <h3 class="reveal">Hazte un chequeo<br />en 10 segundos.</h3>
+          <p class="reveal">Mantén pulsado el sensor como si agarraras los asideros. XPaze mide, compara con los umbrales y te lo explica en una frase. Aquí es una simulación; en la app, con la estación o a mano, es de verdad.</p>
+          <div class="qc__cases" role="group" aria-label="Tipo de día">
+            <button type="button" data-case="ok" aria-pressed="true">Un día normal</button>
+            <button type="button" data-case="warn" aria-pressed="false">Un día con señales</button>
+          </div>
+        </div>
+        <div class="qc__card">
+          <button class="qc__pad" type="button" aria-describedby="qc-hint">
+            <svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="54" class="qc__bg"/><circle cx="60" cy="60" r="54" class="qc__fg" pathLength="100"/></svg>
+            <span class="qc__in"><b data-qc="bpm">—</b><small>lpm</small></span>
+          </button>
+          <p class="qc__hint" id="qc-hint">Mantén pulsado</p>
+          <ul class="qc__rows" aria-live="polite"></ul>
+          <p class="qc__say" aria-live="polite"></p>
+          <a class="btn btn--dark btn--block" href="/app/">Hacer el chequeo completo</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================== 04 NORMAL -->
+    <section class="chapter normal" id="normal" data-chapter="normal">
+      <header class="ch-head">
+        <p class="ch-num">04 — Tu normal</p>
+        <h2 class="reveal">Cada cuerpo<br />es distinto.</h2>
+        <p class="lead reveal">XPaze construye poco a poco tu línea base: cómo se comporta tu cuerpo normalmente. Así una lectura no se compara solo con la media de la población, sino contigo.</p>
+      </header>
+
+      <figure class="chart">
+        <figcaption class="chart__cap">
+          <span>Pulso en reposo · días de misión</span>
+          <span class="chart__day">Día <b>1</b></span>
+        </figcaption>
+        <svg class="chart__svg" viewBox="0 0 1000 420" role="img" aria-label="El pulso en reposo se mantiene en torno a 62 ppm durante la misión y sube a 84 ppm el día 58: dentro del rango de la población, fuera de su línea base."></svg>
+        <div class="chart__legend">
+          <span class="lg lg--pop">Rango de la población</span>
+          <span class="lg lg--mine">Tu línea base</span>
+          <span class="lg lg--meas">Tu lectura</span>
+        </div>
+        <p class="chart__note">Día 58: 84 ppm. <strong>Normal para la población. No para ti.</strong></p>
+      </figure>
+
+      <div class="alert-split">
+        <div class="alert-split__copy">
+          <h3 class="reveal">Una alerta sin explicación sirve de poco.</h3>
+          <p class="reveal">XPaze cuenta qué ha visto y por qué ha avisado, en frases que se entienden. No etiqueta ni diagnostica: detecta el cambio, lo explica y deja las decisiones a los profesionales.</p>
+          <ul class="checks reveal">
+            <li>Te compara contigo, no con otros</li>
+            <li>Descarta lo que explica el ejercicio</li>
+            <li>Solo avisa si el patrón se mantiene</li>
+          </ul>
+        </div>
+        <div class="phone" aria-label="Pantalla de la app con una alerta">
+          <div class="phone__screen">
+            <p class="phone__time">07:42</p>
+            <p class="phone__app">XPaze</p>
+            <p class="phone__who">Día 58 · chequeo de la mañana</p>
+            <div class="phone__badge">A vigilar</div>
+            <p class="phone__title">Varias señales fuera de tu normal</p>
+            <ul class="phone__factors">
+              <li>Pulso en reposo por encima de tu línea base</li>
+              <li>Temperatura algo más alta de lo habitual</li>
+              <li>Sin actividad física que lo explique</li>
+              <li>Se mantiene desde hace 18 minutos</li>
+            </ul>
+            <p class="phone__quote">«Tu pulso en reposo lleva 18 minutos claramente por encima de lo habitual sin que hayas hecho ejercicio. Descansa y repite el chequeo en una hora.»</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================= 05 MENTE -->
+    <section class="chapter mind" id="mente" data-chapter="mente">
+      <header class="ch-head">
+        <p class="ch-num">05 — La mente</p>
+        <h2 class="reveal">La mente<br />también viaja.</h2>
+        <p class="lead reveal">Meses de aislamiento, encierro y sueño alterado pesan también en el ánimo y la atención. XPaze aplica la misma idea: tu propio normal, cambios sostenidos y una explicación clara. Sin diagnósticos.</p>
+      </header>
+
+      <div class="paze" id="paze">
+        <div class="paze__stage">
+          <span class="paze__badge"><i></i>Escucha y responde por voz</span>
+          <div class="paze__orb" role="img" aria-label="Paze: un orbe que respira, escucha y cambia de color al hablar"></div>
+          <div class="paze__moods" role="group" aria-label="Estados de Paze">
+            <button type="button" data-mood="calma">Calma</button>
+            <button type="button" data-mood="escucha" aria-pressed="true">Escucha</button>
+            <button type="button" data-mood="atencion">Atención</button>
+            <button type="button" data-mood="empatia">Empatía</button>
+          </div>
+        </div>
+        <div class="paze__side">
+          <p class="kicker">Conoce a Paze</p>
+          <h3 class="reveal">Tu psicóloga de a bordo.</h3>
+          <p class="reveal">Paze habla contigo por voz, conoce tus datos (sueño, pulso, chequeos, el aire de la cabina y el clima espacial) y recuerda lo que habláis de una sesión a otra. No diagnostica: acompaña, propone técnicas con base científica y, si algo es grave, te lleva a una persona.</p>
+          <div class="paze__log" aria-live="polite"></div>
+          <a class="btn btn--dark" href="/app/">Habla con Paze</a>
+        </div>
+      </div>
+
+      <div class="grid4">
+        <article class="cell reveal"><b>Ánimo en 30 segundos</b><p>Tres deslizadores al día: cómo te sientes, cuánta energía tienes y cuánta tensión notas.</p></article>
+        <article class="cell reveal"><b>Vigilancia psicomotora</b><p>Un test corto de reacción. Los fallos y la lentitud dicen mucho de la fatiga.</p></article>
+        <article class="cell reveal"><b>Sueño y fatiga</b><p>El reloj aporta horas y calidad de sueño; tú añades la carga de trabajo que percibes.</p></article>
+        <article class="cell reveal"><b>Estrés por HRV</b><p>La variabilidad cardiaca y el pulso en reposo se comparan con los tuyos, no con los de otros.</p></article>
+        <article class="cell reveal"><b>Cohesión de la tripulación</b><p>Unas preguntas breves sobre convivencia y aislamiento, para notar cuándo cambia el ambiente.</p></article>
+        <article class="cell reveal"><b>Diario privado</b><p>Lo que escribes no sale del dispositivo. Nadie más lo lee.</p></article>
+        <article class="cell reveal"><b>Respiración guiada</b><p>Pausas y ejercicios cortos, sugeridos según tu patrón de los últimos días.</p></article>
+        <article class="cell reveal"><b>Tú decides qué compartes</b><p>Por defecto, el médico de a bordo solo ve un semáforo general.</p></article>
+      </div>
+
+      <div class="try">
+        <div class="tryc pvt" data-state="idle">
+          <p class="tryc__k">Pruébalo</p>
+          <h3>Mide tu reacción.</h3>
+          <p>Cinco estímulos. Pulsa en cuanto se encienda el círculo.</p>
+          <button class="pvt__pad" type="button" aria-label="Zona de prueba de reacción"><span class="pvt__dot"></span><span class="pvt__msg">Empezar</span></button>
+          <p class="pvt__out" aria-live="polite"></p>
+        </div>
+        <div class="tryc breath" data-state="idle">
+          <p class="tryc__k">Pruébalo</p>
+          <h3>Respira un minuto.</h3>
+          <p>Inspira 4 segundos y espira 6. Sigue el círculo.</p>
+          <button class="breath__pad" type="button" aria-label="Iniciar respiración guiada"><span class="breath__ring"></span><span class="breath__msg">Empezar</span></button>
+          <p class="breath__out" aria-live="polite"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== 06 AUTONOMÍA -->
+    <section class="chapter delay" id="autonomia" data-chapter="autonomia">
+      <header class="ch-head">
+        <p class="ch-num">06 — Autonomía</p>
+        <h2 class="reveal">Pensado para cuando<br />la Tierra tarda en contestar.</h2>
+        <p class="lead reveal">Cuanto más lejos va una misión, más importa la autonomía. XPaze procesa lo esencial en la propia nave, sin nube y sin esperar a nadie.</p>
+      </header>
+
+      <div class="light">
+        <div class="light__live">
+          <p class="light__k">Ahora mismo</p>
+          <p class="light__big"><span data-mars="oneway">—</span></p>
+          <p class="light__sub">tarda un mensaje en llegar de la Tierra a Marte, a <span data-mars="km">—</span> millones de km. Ida y vuelta: <span data-mars="round">—</span>.</p>
+        </div>
+        <div class="light__track" aria-hidden="true">
+          <div class="light__line"><i class="light__photon"></i></div>
+          <div class="light__body light__body--earth"><span></span>Tierra</div>
+          <div class="light__body light__body--moon"><span></span>Luna<small>1,3 s</small></div>
+          <div class="light__body light__body--mars"><span></span>Marte<small>3–22 min</small></div>
+        </div>
+        <p class="light__note">Calculado en tu navegador con la posición real de los planetas para hoy.</p>
+      </div>
+
+      <div class="sw" id="sw" hidden>
+        <div class="sw__head">
+          <div>
+            <p class="kicker"><span class="sw__live" aria-hidden="true"></span>En directo</p>
+            <h3 class="reveal">El clima espacial, ahora mismo.</h3>
+          </div>
+          <div class="sw__env" role="group" aria-label="Entorno de la misión">
+            <button type="button" data-env="transit" aria-pressed="true">Tránsito a Marte</button>
+            <button type="button" data-env="station">Estación orbital</button>
+            <button type="button" data-env="lunar">Base lunar</button>
+            <button type="button" data-env="rover">Rover</button>
+          </div>
+        </div>
+        <div class="sw__body">
+          <div class="sw__light"><span></span></div>
+          <div>
+            <p class="sw__title" aria-live="polite">—</p>
+            <ul class="sw__reasons"></ul>
+            <ul class="sw__actions"></ul>
+          </div>
+        </div>
+        <p class="sw__note"></p>
+      </div>
+
+      <div class="grid4 grid4--priv">
+        <article class="cell reveal"><b>Se queda a bordo</b><p>Siempre que se puede, los datos biométricos no salen de la nave.</p></article>
+        <article class="cell reveal"><b>Se procesa en local</b><p>La Raspberry Pi crea su propia red WiFi: el análisis y la app funcionan sin internet.</p></article>
+        <article class="cell reveal"><b>Solo viaja lo necesario</b><p>A la Tierra se sincroniza lo esencial, no todo.</p></article>
+        <article class="cell reveal"><b>Acceso por contexto</b><p>Quién ve qué se puede limitar en cada fase de la misión.</p></article>
+      </div>
+    </section>
+
+    <!-- =================================================== 07 POR DENTRO -->
+    <section class="chapter inside" id="dentro" data-chapter="dentro">
+      <header class="ch-head">
+        <p class="ch-num">07 — Por dentro</p>
+        <h2 class="reveal">Así está hecha<br />la estación.</h2>
+        <p class="lead reveal">El prototipo, pieza a pieza. Sigue bajando para desmontarlo.</p>
+      </header>
+
+      <div class="teardown">
+        <div class="teardown__pin">
+          <div class="teardown__steps">
+            <p class="teardown__count"><b>0</b> / 8</p>
+            <ol class="steps">
+              <li class="is-on"><h3>Estación montada</h3><p>200 × 150 × 70 mm, impresa en 3D, con una bandeja extraíble. Ocho pasos para abrirla.</p></li>
+              <li><h3>Saca el móvil</h3><p>Solo está apoyado en la torre, sin cables. Habla con la estación por WiFi.</p></li>
+              <li><h3>Quita los tapones</h3><p>Encajan a presión en lo alto de los asideros. El derecho lleva dentro el sensor de pulso y oxígeno.</p></li>
+              <li><h3>Saca los asideros</h3><p>Cada uno va forrado con cinta de cobre, que hace de electrodo del ECG. Sus cables bajan por dentro del tubo.</p></li>
+              <li><h3>Quita los cuatro tornillos</h3><p>Tornillos M3 de 12 mm, uno en cada esquina de la tapa.</p></li>
+              <li><h3>Levanta la tapa</h3><p>Sale con la torre del móvil. Dentro van los sensores de temperatura, distancia y ambiente.</p></li>
+              <li><h3>Saca la bandeja</h3><p>Toda la electrónica va montada en una bandeja que sale entera, con todo conectado.</p></li>
+              <li><h3>Separa la electrónica</h3><p>Raspberry Pi, Arduino, módulo de ECG, lector RFID y mini protoboard. Cada uno en su marco.</p></li>
+              <li><h3>Saca la batería</h3><p>Una batería de 10.000 mAh entre dos guías. Da autonomía y aísla el ECG de la red eléctrica.</p></li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="parts">
+        <h3 class="reveal">Los componentes.</h3>
+        <p class="lead lead--sm reveal">Hardware accesible y modular. Ningún sensor es imprescindible: cada tecnología nueva entra como un módulo más.</p>
+        <dl class="parts__list">
+          <div class="reveal"><dt>Raspberry Pi</dt><dd>El cerebro local: historial, línea base, anomalías y la app.</dd></div>
+          <div class="reveal"><dt>Arduino Uno</dt><dd>Lee los sensores a ritmo constante y los envía por USB.</dd></div>
+          <div class="reveal"><dt>AD8232 + cobre</dt><dd>ECG con los asideros como electrodos.</dd></div>
+          <div class="reveal"><dt>MAX30102</dt><dd>Pulso y oxígeno en el pulgar.</dd></div>
+          <div class="reveal"><dt>MLX90614</dt><dd>Temperatura de la frente sin contacto.</dd></div>
+          <div class="reveal"><dt>VL53L0X</dt><dd>Distancia correcta antes de medir.</dd></div>
+          <div class="reveal"><dt>AHT20 + BMP280</dt><dd>Temperatura, humedad y presión de la cabina.</dd></div>
+          <div class="reveal"><dt>RC522</dt><dd>Identifica a cada astronauta con su tarjeta.</dd></div>
+        </dl>
+      </div>
+
+      <div class="pipeline">
+        <h3 class="reveal">Cómo piensa.</h3>
+        <p class="lead lead--sm reveal">Modelos ligeros, rápidos y explicables, elegidos para funcionar con poca energía y pocos datos por persona.</p>
+        <ol class="pipe">
+          <li><b>Contexto</b><p>Reposo, ejercicio o sueño. El mismo pulso significa cosas distintas.</p></li>
+          <li><b>Línea base</b><p>Mediana y dispersión de tus últimas semanas, para cada señal.</p></li>
+          <li><b>Desviación</b><p>Z robusto (mediana y MAD): cuánto se aleja cada señal de lo tuyo.</p></li>
+          <li><b>Deriva</b><p>EWMA para ver cambios lentos que se sostienen día a día.</p></li>
+          <li><b>Rareza conjunta</b><p>Isolation Forest: combinaciones raras aunque ninguna señal sea extrema.</p></li>
+          <li><b>Explicación</b><p>Cada contribución se convierte en una frase que se entiende.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ==================================================== 08 DATOS NASA -->
+    <section class="chapter nasa" id="datos" data-chapter="datos">
+      <header class="ch-head">
+        <p class="ch-num">08 — Datos de la NASA</p>
+        <h2 class="reveal">Datos de la NASA<br />que usamos.</h2>
+        <p class="lead reveal">Con honestidad: lo que XPaze consulta <em>en directo</em> y lo que <em>fundamenta</em> sus umbrales y su diseño. Cada cifra tiene su fuente.</p>
+        <div class="nasa__legend reveal"><span class="tag tag--live"><i></i>En directo</span><span class="tag tag--base">Fundamenta</span></div>
+      </header>
+
+      <div class="nasa__grid">
+        <article class="ncard ncard--live reveal">
+          <span class="tag tag--live"><i></i>En directo</span>
+          <h3>DONKI · clima espacial</h3>
+          <p class="ncard__who">NASA Community Coordinated Modeling Center · api.nasa.gov</p>
+          <p>Avisos reales de los últimos 7 días, valorados con reglas fijas según el entorno de la misión:</p>
+          <ul>
+            <li><b>Partículas solares</b> (48 h): rojo fuera de la magnetosfera, amarillo en órbita baja.</li>
+            <li><b>Fulguración ≥ M5</b> (24 h): vigilancia, pueden llegar protones.</li>
+            <li><b>Tormenta geomagnética Kp ≥ 7</b> y <b>cinturón de radiación</b>: órbita terrestre.</li>
+          </ul>
+          <p class="ncard__use">Lo ves funcionando en el capítulo «Autonomía».</p>
+          <a href="https://api.nasa.gov" target="_blank" rel="noopener">api.nasa.gov ↗</a>
+        </article>
+
+        <article class="ncard ncard--live reveal">
+          <span class="tag tag--live"><i></i>En directo</span>
+          <h3>Retardo Tierra–Marte</h3>
+          <p class="ncard__who">Contrastado con JPL Horizons (NASA/JPL)</p>
+          <p>XPaze calcula en tu navegador la posición de la Tierra y de Marte con sus elementos orbitales, y de ahí el tiempo de la luz.</p>
+          <p class="ncard__big"><b>11,0 min</b> el 14-11-2026, igual que JPL Horizons.</p>
+          <a href="https://ssd.jpl.nasa.gov/horizons/" target="_blank" rel="noopener">JPL Horizons ↗</a>
+        </article>
+
+        <article class="ncard reveal">
+          <span class="tag tag--base">Fundamenta</span>
+          <h3>NASA-STD-3001 · habitabilidad</h3>
+          <p class="ncard__who">Estándar de salud y rendimiento de la tripulación, Vol. 2</p>
+          <ul>
+            <li><b>Confort</b> [V2 6013]: 20–25 °C y 30–60 % de humedad.</li>
+            <li><b>Salud</b> [V2 6012]: 18–27 °C y 25–75 %.</li>
+            <li><b>Presión total</b> [V2 6006].</li>
+            <li><b>CO₂</b> ≤ 3 mmHg de media en 1 h [V2 6004]. Nuestro prototipo aún no mide CO₂.</li>
+          </ul>
+          <p class="ncard__use">Son los límites del semáforo de cabina.</p>
+          <a href="https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-002-eclss.pdf" target="_blank" rel="noopener">Ficha técnica ECLSS ↗</a>
+        </article>
+
+        <article class="ncard reveal">
+          <span class="tag tag--base">Fundamenta</span>
+          <h3>Human Research Program</h3>
+          <p class="ncard__who">Riesgos oficiales para la salud en misiones</p>
+          <p>Cada indicador de XPaze se asocia a un riesgo del programa:</p>
+          <ul class="nasa__map">
+            <li><span>Pulso y tensión</span><b>Cardiovascular</b></li>
+            <li><span>Oxígeno</span><b>Medical Conditions · Hypoxia</b></li>
+            <li><span>Glucosa</span><b>Food and Nutrition</b></li>
+            <li><span>Sueño y reacción</span><b>Sleep</b></li>
+            <li><span>Ánimo (PHQ-2)</span><b>BMed</b></li>
+            <li><span>Convivencia</span><b>Team</b></li>
+            <li><span>Clima espacial</span><b>Space Radiation</b></li>
+          </ul>
+          <a href="https://humanresearchroadmap.nasa.gov/risks/" target="_blank" rel="noopener">Human Research Roadmap ↗</a>
+        </article>
+
+        <article class="ncard reveal">
+          <span class="tag tag--base">Fundamenta</span>
+          <h3>NASA OSDR</h3>
+          <p class="ncard__who">Open Science Data Repository</p>
+          <ul>
+            <li><b>OSD-569 · Inspiration4</b> (Overbey et al., <i>Nature</i> 632, 2024): cada astronauta responde distinto al vuelo. Por eso XPaze te compara con tu propia línea base.</li>
+            <li><b>Environmental Data App</b>: temperatura, CO₂ y humedad reales de la cabina de la ISS, como referencia de valores realistas.</li>
+          </ul>
+          <a href="https://visualization.osdr.nasa.gov/eda/" target="_blank" rel="noopener">Environmental Data App ↗</a>
+        </article>
+
+        <article class="ncard reveal">
+          <span class="tag tag--base">Fundamenta</span>
+          <h3>PVT-B · prueba de reacción</h3>
+          <p class="ncard__who">Basner, Mollicone y Dinges · <i>Acta Astronautica</i>, 2011</p>
+          <p>La versión breve de la prueba de vigilancia usada en la investigación de la ISS.</p>
+          <p class="ncard__big"><b>&gt; 355 ms</b> cuenta como lapso, el umbral validado.</p>
+          <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC3197786" target="_blank" rel="noopener">Artículo ↗</a>
+        </article>
+      </div>
+      <p class="nasa__note reveal">Los datos fisiológicos reales de astronautas no son públicos: solo se obtienen con solicitudes aprobadas. Por eso la tripulación de la demo es simulada, con parámetros publicados.</p>
+    </section>
+
+    <!-- =================================================== 09 PROTOTIPO -->
+    <section class="chapter proto" id="prototipo" data-chapter="prototipo">
+      <header class="ch-head">
+        <p class="ch-num">09 — Prototipo</p>
+        <h2 class="reveal">Lo que ya funciona.<br /><span class="muted">Y lo que viene.</span></h2>
+        <p class="lead reveal">No es un dispositivo médico certificado. Es la prueba de que la idea funciona.</p>
+      </header>
+
+      <div class="status">
+        <div class="status__col reveal">
+          <p class="status__k status__k--ok">Construido</p>
+          <ul>
+            <li>Estación con Arduino Uno y Raspberry Pi. La Pi se anuncia por Bluetooth y por WiFi: sin cables hasta el móvil.</li>
+            <li>App con chequeo guiado de 5 pasos: pulso y oxígeno (sensor o a mano), tensión, glucosa, ánimo y sueño, y señales de alarma.</li>
+            <li>Semáforo con umbrales fijos y citables (NEWS2, ACC/AHA, ADA, PHQ-2, AASM y estándares de habitabilidad espacial). La IA lo explica, nunca cambia un color.</li>
+            <li>Paze: psicóloga por voz y por texto, con memoria entre sesiones y tus datos como contexto.</li>
+            <li>Clima espacial en directo, valorado según el entorno de la misión.</li>
+            <li>Datos reales de un reloj Galaxy Watch vía Samsung Health, con la app Android XPaze Link.</li>
+          </ul>
+        </div>
+        <div class="status__col reveal">
+          <p class="status__k">Simulado y lo que viene</p>
+          <ul>
+            <li><b>Simulado:</b> la tripulación y el entorno de la misión.</li>
+            <li><b>Siguiente:</b> un solo chip con Bluetooth (ESP32) para una estación más pequeña.</li>
+            <li><b>Siguiente:</b> tendencias de semanas con un modelo dedicado.</li>
+            <li><b>Siguiente:</b> ECG y temperatura sin contacto integrados en la estación física.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="earth">
+        <h3 class="reveal">Pensado para el espacio.<br />Útil también en la Tierra.</h3>
+        <p class="earth__formula reveal">Aislamiento <i>+</i> pocos recursos <i>+</i> detectar rápido un problema</p>
+        <div class="marquee" aria-label="Lugares donde también es útil">
+          <div class="marquee__row">
+            <span>Bases polares</span><span>Estaciones de investigación</span><span>Barcos</span><span>Submarinos</span><span>Expediciones</span><span>Zonas rurales</span><span>Emergencias</span><span>Lugares sin conexión estable</span>
+            <span aria-hidden="true">Bases polares</span><span aria-hidden="true">Estaciones de investigación</span><span aria-hidden="true">Barcos</span><span aria-hidden="true">Submarinos</span><span aria-hidden="true">Expediciones</span><span aria-hidden="true">Zonas rurales</span><span aria-hidden="true">Emergencias</span><span aria-hidden="true">Lugares sin conexión estable</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================== CIERRE -->
+    <section class="finale" id="finale">
+      <div class="finale__earth" aria-hidden="true"><canvas id="earth"></canvas></div>
+      <img src="/logo-mark-dark.png" alt="Logotipo de XPaze" width="120" height="99" />
+      <h2 class="finale__title"><span>Monitorizar.</span> <span>Entender.</span> <span>Anticipar.</span></h2>
+      <p class="lead">Las misiones del futuro no solo necesitarán naves autónomas. Necesitarán herramientas que cuiden de las personas que viajan dentro.</p>
+      <div class="hero__cta">
+        <a class="btn btn--dark btn--xl" href="/app/">Probar XPaze</a>
+        <a class="btn btn--line" href="/demo/">Laboratorio y módulo Mente avanzado</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span class="brand"><img src="/logo-mark-dark.png" alt="" width="24" height="20" />XPaze</span>
+    <p>Prototipo de investigación. No es un dispositivo médico certificado ni sustituye a un profesional sanitario.</p>
+  </footer>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
