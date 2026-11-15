@@ -24,6 +24,9 @@
 		encode zstd gzip
 		header /assets/* Cache-Control "public, max-age=31536000, immutable"
 		header /app/sw.js Cache-Control "no-cache"
+		# las páginas (HTML) se revalidan siempre: así nunca apuntan a ficheros de una versión anterior
+		@pages path / /app/ /legal/ /astronaut/ /demo/ *.html
+		header @pages Cache-Control "no-cache"
 		header /app/manifest.webmanifest Content-Type "application/manifest+json"
 		file_server
 	}
