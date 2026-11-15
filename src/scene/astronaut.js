@@ -39,6 +39,16 @@ function bendArms(geometry, angle = 0.385, lift = 0.0) {
       N.setXYZ(i, rx, vy * cb - rz * sb, vy * sb + rz * cb);
     }
   }
+  // normales saneadas: una normal de longitud cero (o no numérica) da píxeles no válidos en GPU reales
+  if (N) {
+    let bad = 0;
+    for (let i = 0; i < N.count; i++) {
+      const x = N.getX(i), y = N.getY(i), z = N.getZ(i), l = Math.hypot(x, y, z);
+      if (!(l > 1e-6) || !Number.isFinite(l)) { N.setXYZ(i, 0, 1, 0); bad++; } else if (Math.abs(l - 1) > 1e-3) N.setXYZ(i, x / l, y / l, z / l);
+    }
+    if (bad) console.info(`[astronauta] ${bad} normales corregidas`);
+  } else geometry.computeVertexNormals();
+  for (let i = 0; i < P.count; i++) if (!Number.isFinite(P.getX(i) + P.getY(i) + P.getZ(i))) P.setXYZ(i, 0, 1.2, 0);
   P.needsUpdate = true;
   if (N) N.needsUpdate = true;
   geometry.computeBoundingBox();
@@ -73,6 +83,12 @@ export function makeAstronaut(renderer) {
         // el mapa de brillos del fichero produce motas de color con luces intensas: fuera
         o.material.specularColorMap = null; o.material.specularIntensityMap = null;
         o.material.specularIntensity = 0.35; o.material.roughness = 0.72;
+        // el mapa de relieve viene con intensidad 0 en el fichero: no aporta nada, y en algunas
+        // tarjetas gráficas su cálculo da valores no válidos que el resplandor extiende a toda la
+        // pantalla (se queda en negro al aparecer el astronauta)
+        o.material.normalMap = null; o.material.bumpMap = null; o.material.aoMap = null;
+        o.material.transmission = 0; o.material.sheen = 0; o.material.clearcoat = 0;
+        geo.deleteAttribute('tangent');
         // visor dorado: el modelo trae todo en un solo material, así que el visor se reconoce por su
         // posición (casquete frontal del casco, en metros) y ahí el material pasa a oro pulido
         o.material.onBeforeCompile = (sh) => {
@@ -82,13 +98,15 @@ export function makeAstronaut(renderer) {
             .replace('#include <map_fragment>', `#include <map_fragment>
               vec3 vc = vMP - vec3(0.0, 1.705, 0.075);
               float vd = length(vc);
-              float vis = smoothstep(0.18, 0.3, vc.z / vd) * step(vd, 0.2) * step(0.14, vd) * step(vMP.y, 1.835);
+              float vis = smoothstep(0.18, 0.3, vc.z / max(vd, 0.0001)) * step(vd, 0.2) * step(0.14, vd) * step(vMP.y, 1.835);
               // los desconchones del traje tiran a azul: se dejan en gris claro
               float bl = smoothstep(0.0, 0.08, diffuseColor.b - max(diffuseColor.r, diffuseColor.g));
               diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.3333))) * 1.2, bl * step(vMP.y, 1.5));
               diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.7, 0.26), vis);`)
             .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.06, vis);')
-            .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 1.0, vis);');
+            .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 1.0, vis);')
+            // red de seguridad: ningún píxel sale con un valor no válido o desorbitado
+            .replace('#include <dithering_fragment>', '#include <dithering_fragment>\nif (!(gl_FragColor.r >= 0.0) || !(gl_FragColor.g >= 0.0) || !(gl_FragColor.b >= 0.0)) gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);\ngl_FragColor.rgb = min(gl_FragColor.rgb, vec3(40.0));');
         };
         o.material.needsUpdate = true;
         o.castShadow = true; o.receiveShadow = true;
