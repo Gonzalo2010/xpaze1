@@ -83,6 +83,18 @@ export class SimBody {
     this.cur.rhythm = this.target.rhythm;
   }
 
+  /** Respiración lenta guiada: el cuerpo responde (respiración a 6 rpm, pulso y EDA bajan, HRV sube). */
+  breathe(on) {
+    if (on) {
+      this.saved = { ...this.target };
+      this.target = { ...this.target, rr: 6, hr: Math.max(this.base.hr - 2, this.target.hr - 6), rmssd: this.target.rmssd * 1.35, eda: Math.max(this.base.eda, this.target.eda * 0.6), sys: this.target.sys - 4 };
+    } else if (this.saved) {
+      // al terminar queda algo más tranquilo que antes; la respiración vuelve a su ritmo
+      this.target = { ...this.saved, hr: (this.saved.hr + this.target.hr) / 2, eda: (this.saved.eda + this.target.eda) / 2, rmssd: (this.saved.rmssd + this.target.rmssd) / 2 };
+      this.saved = null;
+    }
+  }
+
   /** Salta directamente al escenario (modo demo): sin transición y con los latidos recientes reiniciados. */
   settle() {
     this.cur = { ...this.target };

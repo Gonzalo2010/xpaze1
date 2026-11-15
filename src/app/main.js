@@ -95,7 +95,7 @@ function tabbar() {
 }
 
 function render() {
-  const views = { welcome, choose, connecting, home, live, check, result, history, entry, chat };
+  const views = { welcome, choose, connecting, home, live, check, result, history, entry, chat, crew };
   if (S.pazeOrb && S.screen !== 'chat') { S.pazeOrb.destroy(); S.pazeOrb = null; }
   if (S.homeOrb && S.screen !== 'home') { S.homeOrb.destroy(); S.homeOrb = null; }
   app.replaceChildren();
@@ -154,12 +154,14 @@ function welcome() {
           ${p.real ? `<span class="pc__tag">${L('Tus datos reales', 'Your real data')}</span>` : ''}
         </button>`;
       }).join('')}</div>
+      <button class="btn btn--line btn--block crew-btn" data-act="crew">${icon('chart')} ${L('Vista del oficial médico: toda la tripulación', 'Medical officer view: the whole crew')}</button>
       <button class="linkish welcome__hw" data-act="connect">${S.link && S.link.kind !== 'sim' ? `${L('Conectado a', 'Connected to')} ${esc(S.link.name)}` : L('Tengo la XPaze Station: conectar por Bluetooth o WiFi', 'I have the XPaze Station: connect via Bluetooth or WiFi')}</button>
       <p class="fine">${L('Prototipo de investigación. No es un dispositivo médico.', 'Research prototype. Not a medical device.')}</p>
     </section>`);
   const onboarded = () => { if (!saved.onboarded) { saved.onboarded = true; store.save(saved); } };
   node.querySelectorAll('[data-uid]').forEach((b) => b.addEventListener('click', () => { onboarded(); enter(b.dataset.uid); }));
   node.querySelector('[data-act="connect"]').onclick = () => go('choose');
+  node.querySelector('[data-act="crew"]').onclick = () => { onboarded(); go('crew'); };
   node.querySelector('[data-act="demo"]').onclick = () => { onboarded(); runDemo(); };
   const ok = node.querySelector('[data-act="onboard-ok"]');
   if (ok) ok.onclick = () => { onboarded(); ok.closest('.onboard').remove(); };
@@ -220,11 +222,13 @@ function home() {
       </div>
 
       <div class="envsel"><span>${L('¿Dónde estás?', 'Where are you?')}</span><div class="seg seg--wrap">${Object.entries(ENVIRONMENTS).map(([k, e]) => `<button data-env="${k}" class="${k === envKey() ? 'is-on' : ''}">${e.short}</button>`).join('')}</div></div>
+      <button class="linkish" data-act="crewv">${L('Ver a toda la tripulación', 'See the whole crew')}</button>
       <button class="linkish" data-act="switch">${L(`No soy ${esc(first)}: cambiar de persona`, `Not ${esc(first)}? Switch person`)}</button>
     </section>`);
   wire(node);
   node.querySelector('[data-act="datos"]').onclick = () => go('live');
   node.querySelector('[data-act="switch"]').onclick = () => go('welcome');
+  node.querySelector('[data-act="crewv"]').onclick = () => go('crew');
   // Paze vive en el botón
   try {
     S.homeOrb?.destroy();
@@ -448,7 +452,7 @@ function simPanel() {
       <summary>${L('Controles de la estación simulada', 'Simulated station controls')}</summary>
       <div class="sim__row"><span>${L('Tarjeta', 'Card')}</span>
         <div class="seg">${PEOPLE.map((c) => `<button data-sim-card="${c.uid}">${esc(c.name.split(' ')[0])}</button>`).join('')}</div></div>
-      <div class="sim__row"><span>${L('Dedo en el sensor', 'Finger on sensor')}</span><button class="switch" data-sim="finger" aria-pressed="false" aria-label="${L('Dedo en el sensor', 'Finger on sensor')}"><i></i></button></div>
+      <div class="sim__row"><span>${L('Dedo en el sensor', 'Finger on sensor')}</span><button class="switch" data-sim="finger" aria-pressed="${!!S.link?.finger}" aria-label="${L('Dedo en el sensor', 'Finger on sensor')}"><i></i></button></div>
       <div class="sim__row sim__row--col"><span>${L('Qué le pasa a esta persona', 'What is happening to this person')}</span>
         <div class="seg seg--wrap seg--left">${SIM_SCENARIOS.map(([k]) => `<button data-sim-prof="${k}" class="${S.link?.scenario === k ? 'is-on' : ''}">${SCEN_NAME(k)}</button>`).join('')}</div>
         <p class="fine" data-live="scen">${SCEN_DESC(S.link?.scenario || 'rest')}</p></div>
@@ -564,6 +568,7 @@ function onEvent({ type, data }) {
     return; // se pinta en el bucle de la onda
   } else if (type === 'ext') {
     S.ext = data;
+    checkAlerts(data);
     if (S.check && STEPS[S.check.step] === 'hr' && !S.check.manual) S.check.ext.push(data);
   } else if (type === 'ext-status') {
     S.extStatus = data;
@@ -1405,6 +1410,7 @@ function chat() {
       ${topbar()}
       <div class="chat-top">
         <p class="kicker">${L('Paze · psicóloga de a bordo (IA)', 'Paze · on-board psychologist (AI)')}</p>
+        <button class="chip-btn chip-btn--breath" data-act="breathe">${L('Respirar 1 min', 'Breathe 1 min')}</button>
         <div class="seg"><button data-mode="voz" class="${voice ? 'is-on' : ''}">${L('Voz', 'Voice')}</button><button data-mode="texto" class="${voice ? '' : 'is-on'}">${L('Texto', 'Text')}</button></div>
       </div>
       <p class="ai-notice">${t('ai.notice')}</p>
@@ -1451,6 +1457,7 @@ function chat() {
   }));
   node.querySelector('[data-act="home"]').onclick = () => { S.voice?.stop(); go(S.result ? 'result' : 'home'); };
   wire(node);
+  node.querySelector('[data-act="breathe"]').onclick = () => startBreathing({ onDone: voice ? null : (msg) => S.chatAsk?.(msg) });
   if (voice) wireVoice(node, flagCrisis);
   else { wireText(node, C, flagCrisis); openSession(node, C); }
   return node;
@@ -1460,7 +1467,7 @@ function chat() {
 const OPEN_TOKEN = '__inicio__';
 const staticGreeting = () => `${L('Hola', 'Hi')}${S.person ? `, ${S.person.name.split(' ')[0]}` : ''}. ${L('Soy Paze, la psicóloga de a bordo. Para empezar: ¿cómo has dormido esta noche?', 'I’m Paze, the on-board psychologist. To start: how did you sleep last night?')}`;
 async function openSession(node, C) {
-  if (C.history.length || C.opening) return;
+  if (C.history.length || C.opening) { if (S.pendingSay && !C.opening) { const m = S.pendingSay; S.pendingSay = null; setTimeout(() => S.chatAsk?.(m), 50); } return; }
   C.opening = true;
   const list = node.querySelector('.chat-list');
   const send = node.querySelector('[data-act="send"]');
@@ -1479,6 +1486,7 @@ async function openSession(node, C) {
   out.classList.remove('is-typing');
   if (send) send.disabled = false;
   C.opening = false;
+  if (S.pendingSay) { const m = S.pendingSay; S.pendingSay = null; S.chatAsk?.(m); }
 }
 
 function memoryBox() {
@@ -1578,6 +1586,7 @@ function wireText(node, C, flagCrisis) {
       send.disabled = false;
     }
   }
+  S.chatAsk = (t) => ask(t);
   send.onclick = () => ask(input.value.trim());
   input.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(input.value.trim()); } };
   node.querySelectorAll('[data-say]').forEach((b) => { b.onclick = () => ask(b.dataset.say); });
@@ -1737,6 +1746,164 @@ function spark(raw, ref) {
     <path d="${d}" class="spark__line"/>${pts.map((p) => `<circle cx="${p[0]}" cy="${p[1]}" r="3" class="spark__dot"/>`).join('')}</svg>`;
 }
 
+
+/* ------------------------------------------- vista del oficial médico -- */
+// Toda la tripulación de un vistazo, ordenada por quién necesita atención primero.
+function crewStatus(uid) {
+  const h = (saved.history[uid] || []).slice().sort((a, b) => a.at - b.at);
+  const last = h.at(-1);
+  const ins = trendInsights(h);
+  const top = ins.find((i) => i.level > 0) || null;
+  const level = Math.max(last?.overall ?? 0, top ? top.level : 0);
+  return { last, top, level, ins };
+}
+
+function crew() {
+  const people = PEOPLE.filter((x) => !REAL_PEOPLE[x.uid]).map((x) => ({ ...personFromUid(x.uid), ...crewStatus(x.uid) }))
+    .sort((a, b) => b.level - a.level || (b.ins.filter((i) => i.level).length - a.ins.filter((i) => i.level).length));
+  const counts = [0, 1, 2].map((l) => people.filter((p) => p.level === l).length);
+  const sp = spaceNow();
+  const node = el(`
+    <section class="screen crewv">
+      <header class="brandbar"><button class="linkish" data-act="back">←</button><img src="/logo-mark-dark.png" alt="" width="34" height="28"/><b>XPaze</b>${langSwitch()}</header>
+      <p class="kicker">${L('Vista del oficial médico', 'Medical officer view')} · ${esc(ENVIRONMENTS[envKey()].name)}</p>
+      <h1>${L('La tripulación hoy', 'The crew today')}</h1>
+      <div class="glance">
+        <div class="g"><small>${L('Bien', 'Good')}</small><b><span class="dot dot--ok"></span>${counts[0]}</b></div>
+        <div class="g"><small>${L('A vigilar', 'Watch')}</small><b><span class="dot dot--warn"></span>${counts[1]}</b></div>
+        <div class="g"><small>${L('Actuar', 'Act')}</small><b><span class="dot dot--err"></span>${counts[2]}</b></div>
+      </div>
+      ${sp ? `<p class="fine crew__env"><span class="dot dot--${LEVEL_CLS[sp.level]}"></span> ${L('Clima espacial', 'Space weather')}: ${esc(sp.headline)}</p>` : ''}
+      <ul class="crewlist">${people.map((p) => `
+        <li class="lvl-${LEVEL_CLS[p.level]}"><button data-open="${p.uid}" style="--hue:${p.hue}">
+          <span class="avatar">${esc(p.name.split(' ').map((w) => w[0]).join('').slice(0, 2))}</span>
+          <span class="crew__txt"><b>${esc(p.name)} <span class="dot dot--${LEVEL_CLS[p.level]}"></span></b><small>${esc(p.role)}</small>
+            <span class="crew__vals">${p.last ? `${p.last.bpm} ${L('lpm', 'bpm')} · HRV ${p.last.rmssd ?? '—'} · ${fmt(p.last.mind?.sleep, 1)} h ${L('sueño', 'sleep')}` : L('sin chequeos', 'no check-ups')}</span>
+            <span class="crew__why">${esc(p.top ? p.top.text : (p.ins[0]?.text || L('Sin cambios.', 'No changes.')))}</span></span>
+          <span class="crew__go">›</span></button></li>`).join('')}</ul>
+      <div class="row">
+        <button class="btn btn--dark" data-act="report">${L('Informe de la tripulación', 'Crew report')}</button>
+        <button class="btn btn--line" data-act="back2">${L('Volver', 'Back')}</button>
+      </div>
+      <p class="fine">${L('Ordenada por prioridad: color del último chequeo y cambios frente a la normal de cada persona. Datos simulados.', 'Sorted by priority: colour of the latest check-up and changes against each person’s normal. Simulated data.')}</p>
+    </section>`);
+  const back = () => go(S.person ? 'home' : 'welcome');
+  node.querySelector('[data-act="back"]').onclick = back;
+  node.querySelector('[data-act="back2"]').onclick = back;
+  node.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => enter(b.dataset.open)));
+  node.querySelector('[data-act="report"]').onclick = () => shareReport([
+    L('INFORME DE TRIPULACIÓN · XPaze', 'CREW REPORT · XPaze'), `${ENVIRONMENTS[envKey()].name} · ${new Date().toLocaleString(locale())}`, '',
+    ...people.map((p) => `${['🟢', '🟡', '🔴'][p.level]} ${p.name} (${p.role}): ${p.last ? `${p.last.bpm} ${L('lpm', 'bpm')}, HRV ${p.last.rmssd}, ${p.last.mind?.sleep} h` : '—'}\n   ${p.ins.map((i) => i.text).join('\n   ')}`),
+    '', L('Datos simulados (demo). XPaze no diagnostica.', 'Simulated data (demo). XPaze does not diagnose.'),
+  ].join('\n'));
+  wireLangSwitch(node, relang);
+  loadSpace().then(() => { if (S.screen === 'crew' && !sp && spaceNow()) render(); });
+  return node;
+}
+
+/* ------------------------------------------------- alertas en directo -- */
+// Mientras la estación mide, si algo se sale de rango durante varias lecturas seguidas, avisa sin
+// esperar al chequeo. Cada alerta salta una vez y se rearma cuando la señal vuelve a la normalidad.
+const ALERTS = [
+  { k: 'af', test: (x) => x.rhythm === 'irregular', lvl: 1, t: ['Ritmo irregular detectado', 'Irregular rhythm detected'], d: ['El ECG de los asideros muestra latidos irregulares, compatibles con fibrilación auricular. Quédate quieto y hazte un chequeo.', 'The handle ECG shows irregular beats, compatible with atrial fibrillation. Stay still and do a check-up.'], act: 'check' },
+  { k: 'pvc', test: (x) => x.rhythm === 'ectopics', lvl: 1, t: ['Extrasístoles repetidas', 'Repeated ectopic beats'], d: ['El ECG detecta latidos adelantados. Suelen ser benignos; repite la medida en reposo.', 'The ECG detects early beats. Usually benign; repeat the measurement at rest.'], act: 'check' },
+  { k: 'fever', test: (x) => x.temp >= 38.1, lvl: 1, t: ['Fiebre', 'Fever'], d: ['La temperatura pasa de 38 °C. Hazte un chequeo y limita el contacto cercano con la tripulación.', 'Temperature is above 38 °C. Do a check-up and limit close contact with the crew.'], act: 'check' },
+  { k: 'resp', test: (x) => x.rr >= 21 && !S.breathing, lvl: 1, t: ['Respiración rápida en reposo', 'Fast breathing at rest'], d: ['Respiras más rápido de lo normal sin hacer esfuerzo.', 'You are breathing faster than normal without effort.'], act: 'check' },
+  { k: 'qtc', test: (x) => x.qtc >= 460, lvl: 1, t: ['QTc alargado', 'Prolonged QTc'], d: ['El ECG muestra un QTc largo. Revisa con el oficial médico la medicación que has tomado.', 'The ECG shows a long QTc. Review the medication you have taken with the medical officer.'], act: 'check' },
+  { k: 'stress', test: (x) => x.eda >= 8 && !S.breathing, lvl: 1, t: ['Estrés alto', 'High stress'], d: ['Tu actividad electrodérmica está alta. Un minuto de respiración guiada con Paze puede bajarla.', 'Your electrodermal activity is high. One minute of guided breathing with Paze can bring it down.'], act: 'breathe' },
+  { k: 'co2', test: (x) => co2Level(x.co2) === 2, lvl: 2, t: ['CO₂ alto en la cabina', 'High cabin CO₂'], d: ['Por encima del límite de NASA-STD-3001: afecta a toda la tripulación. Avisa y revisa el depurador de CO₂.', 'Above the NASA-STD-3001 limit: it affects the whole crew. Alert them and check the CO₂ scrubber.'], act: 'crew' },
+  { k: 'dose', test: (x) => x.dose >= 200, lvl: 2, t: ['Radiación muy alta', 'Very high radiation'], d: ['El dosímetro marca un evento de partículas solares. Ve al refugio de radiación.', 'The dosimeter shows a solar particle event. Go to the radiation shelter.'], act: 'crew' },
+];
+const alertState = { streak: {}, active: new Set() };
+function checkAlerts(x) {
+  if (!x || !S.person || S.demo || S.screen === 'check') return;
+  for (const a of ALERTS) {
+    const on = !!a.test(x);
+    alertState.streak[a.k] = on ? (alertState.streak[a.k] || 0) + 1 : 0;
+    if (!on) { alertState.active.delete(a.k); continue; }
+    if (alertState.streak[a.k] >= 3 && !alertState.active.has(a.k)) { alertState.active.add(a.k); showAlert(a); }
+  }
+}
+function showAlert(a) {
+  document.querySelector('.alertb')?.remove();
+  const btn = { check: L('Hacerme un chequeo', 'Do a check-up'), breathe: L('Respirar con Paze', 'Breathe with Paze'), crew: L('Ver la tripulación', 'See the crew') }[a.act];
+  const box = el(`<div class="alertb alertb--${LEVEL_CLS[a.lvl]}" role="alert">
+    <div class="alertb__head"><span class="dot dot--${LEVEL_CLS[a.lvl]}"></span><b>${esc(L(...a.t))}</b><button class="alertb__x" aria-label="${L('Cerrar', 'Close')}">✕</button></div>
+    <p>${esc(L(...a.d))}</p><button class="btn btn--dark btn--sm" data-a="go">${btn}</button></div>`);
+  box.querySelector('.alertb__x').onclick = () => box.remove();
+  box.querySelector('[data-a="go"]').onclick = () => {
+    box.remove();
+    if (a.act === 'check') startCheck(); else if (a.act === 'breathe') startBreathing(); else go('crew');
+  };
+  document.body.append(box);
+  vibrate([120, 80, 120]);
+  setTimeout(() => box.remove(), 20000);
+}
+
+/* --------------------------------------------- respiración guiada (Paze) -- */
+// 1 minuto de respiración 4-6 (4 s inspirar, 6 s espirar) con el orbe de Paze marcando el ritmo.
+// En la estación simulada el cuerpo responde de verdad: se ve el antes y el después.
+function startBreathing({ onDone } = {}) {
+  if (document.querySelector('.breath')) return;
+  const IN = 4, OUT = 6, CYCLES = 6, total = (IN + OUT) * CYCLES;
+  const read = () => ({ hr: S.ext?.ecgHr ?? S.vitals?.bpm ?? null, eda: S.ext?.eda ?? null, rmssd: S.ext?.rmssd ?? null });
+  const before = read();
+  const box = el(`<div class="breath" role="dialog" aria-label="${L('Respiración guiada', 'Guided breathing')}">
+    <p class="kicker">${L('Respira con Paze · 1 minuto', 'Breathe with Paze · 1 minute')}</p>
+    <div class="breath__orb"></div>
+    <h2 class="breath__cue">${L('Prepárate…', 'Get ready…')}</h2>
+    <p class="breath__sub">${L('Inspira por la nariz 4 segundos y suelta el aire despacio en 6.', 'Breathe in through your nose for 4 seconds and let the air out slowly over 6.')}</p>
+    <div class="breath__bar"><i></i></div>
+    <p class="breath__live" data-b="live"></p>
+    <div class="breath__end" hidden></div>
+    <button class="btn btn--line" data-b="stop">${L('Terminar', 'Finish')}</button>
+  </div>`);
+  document.body.append(box);
+  const t0 = performance.now() + 1500;
+  let orb = null;
+  try { orb = new PazeOrb(box.querySelector('.breath__orb'), { mood: 'respira', hr: before.hr || 64 }); orb.start(); } catch { /* sin WebGL */ }
+  const phase = () => { const t = (performance.now() - t0) / 1000; if (t < 0) return null; const c = t % (IN + OUT); return c < IN ? { inhale: true, p: c / IN, left: Math.ceil(IN - c) } : { inhale: false, p: (c - IN) / OUT, left: Math.ceil(IN + OUT - c) }; };
+  if (orb) orb.breathFn = () => { const ph = phase(); if (!ph) return 0.3; return ph.inhale ? 0.5 - 0.5 * Math.cos(Math.PI * ph.p) : 0.5 + 0.5 * Math.cos(Math.PI * ph.p); };
+  S.breathing = true;
+  S.link?.body?.breathe?.(true);
+  const cue = box.querySelector('.breath__cue'), bar = box.querySelector('.breath__bar i'), live = box.querySelector('[data-b="live"]');
+  const timer = setInterval(() => {
+    const t = (performance.now() - t0) / 1000;
+    const ph = phase();
+    if (ph) cue.textContent = `${ph.inhale ? L('Inspira', 'Breathe in') : L('Suelta el aire', 'Breathe out')} · ${ph.left}`;
+    bar.style.width = `${Math.min(100, Math.max(0, (t / total) * 100))}%`;
+    const r = read();
+    if (r.hr) live.textContent = `${L('Pulso', 'Heart rate')} ${r.hr} ${L('lpm', 'bpm')}${r.eda != null ? ` · EDA ${fmt(r.eda, 1)} µS` : ''}`;
+    if (t >= total) finish(true);
+  }, 200);
+  function finish(done) {
+    clearInterval(timer);
+    S.breathing = false;
+    S.link?.body?.breathe?.(false);
+    orb?.destroy();
+    const after = read();
+    if (!done) { box.remove(); return; }
+    box.querySelector('.breath__orb').remove();
+    bar.parentElement.remove(); live.remove();
+    cue.textContent = L('Bien hecho.', 'Well done.');
+    const diff = before.hr && after.hr ? `${L('Pulso', 'Heart rate')}: ${before.hr} → ${after.hr} ${L('lpm', 'bpm')}` : '';
+    const eda = before.eda != null && after.eda != null ? ` · EDA: ${fmt(before.eda, 1)} → ${fmt(after.eda, 1)} µS` : '';
+    const hrv = before.rmssd && after.rmssd ? ` · HRV: ${before.rmssd} → ${after.rmssd} ms` : '';
+    const summary = `${diff}${eda}${hrv}`;
+    box.querySelector('.breath__sub').textContent = summary || L('Has completado un minuto de respiración lenta.', 'You completed one minute of slow breathing.');
+    const end = box.querySelector('.breath__end');
+    end.hidden = false;
+    end.innerHTML = `<button class="btn btn--dark" data-b="tell">${L('Contárselo a Paze', 'Tell Paze')}</button>`;
+    box.querySelector('[data-b="stop"]').textContent = L('Cerrar', 'Close');
+    end.querySelector('[data-b="tell"]').onclick = () => {
+      box.remove();
+      const msg = L(`Acabo de hacer un minuto de respiración guiada. ${summary}.`, `I have just done one minute of guided breathing. ${summary}.`);
+      if (onDone) onDone(msg);
+      else { S.pendingSay = msg; saved.chatMode = 'texto'; openChat(); }
+    };
+  }
+  box.querySelector('[data-b="stop"]').onclick = () => { if (S.breathing) finish(false); else box.remove(); };
+}
 
 /* ------------------------------------------------------ modo demo (60 s) -- */
 // Reproduce la historia del día 58 sin tocar nada: estación simulada → ECG y sensores → chequeo

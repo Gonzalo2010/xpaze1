@@ -453,3 +453,43 @@ body.has-tabs .screen { padding-bottom: calc(96px + env(safe-area-inset-bottom))
 .hrow:active { background: var(--paper-2); }
 .blc figcaption span { color: var(--ink-2); }
 .htab[hidden] { display: none; }
+
+/* vista del oficial médico */
+.crew-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.crew-btn svg { width: 18px; height: 18px; }
+.crewv .brandbar .linkish { font-size: 20px; text-decoration: none; padding: 0 6px 0 0; }
+.crew__env { display: flex; align-items: center; gap: 8px; }
+.crewlist { display: grid; gap: 10px; }
+.crewlist li > button { width: 100%; display: grid; grid-template-columns: 52px 1fr auto; gap: 14px; align-items: start; text-align: left; padding: 14px; border-radius: 20px; border: 1px solid var(--line); background: var(--card); font: inherit; color: inherit; }
+.crewlist li.lvl-warn > button { background: #fffaf0; border-color: rgba(194, 106, 0, 0.3); }
+.crewlist li.lvl-err > button { background: #fff5f5; border-color: rgba(229, 72, 77, 0.35); }
+.crewlist .avatar { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; color: #fff; font-weight: 700; background: hsl(var(--hue) 55% 45%); }
+.crew__txt { display: grid; gap: 3px; }
+.crew__txt b { display: inline-flex; align-items: center; gap: 8px; font-size: 16px; }
+.crew__txt small { color: var(--muted); font-size: 13px; }
+.crew__vals { font: 500 12px/1.4 var(--mono); color: var(--ink-2); }
+.crew__why { font-size: 13.5px; line-height: 1.4; color: var(--ink-2); margin-top: 2px; }
+.crew__go { font-size: 22px; color: var(--muted); align-self: center; }
+
+/* alertas en directo */
+.alertb { position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(488px, calc(100% - 24px)); z-index: 40; background: var(--card); border: 1px solid rgba(194, 106, 0, 0.45); border-left: 5px solid var(--amber); border-radius: 18px; padding: 12px 14px 14px; box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.45); display: grid; gap: 8px; animation: alertin 0.5s var(--ease); }
+.alertb--err { border-color: rgba(229, 72, 77, 0.5); border-left-color: var(--red); }
+@keyframes alertin { from { opacity: 0; transform: translate(-50%, -20px); } }
+.alertb__head { display: flex; align-items: center; gap: 8px; }
+.alertb__head b { font-size: 15.5px; }
+.alertb__x { margin-left: auto; border: 0; background: none; color: var(--muted); font-size: 15px; padding: 2px 4px; }
+.alertb p { font-size: 14px; line-height: 1.4; color: var(--ink-2); }
+.alertb .btn { justify-self: start; }
+.btn--sm { padding: 9px 16px; font-size: 14px; }
+
+/* respiración guiada */
+.chat-top { gap: 8px; }
+.chip-btn--breath { background: var(--green-soft); border-color: rgba(28, 138, 44, 0.25); color: var(--green-ink); font-weight: 600; }
+.breath { position: fixed; inset: 0; z-index: 50; background: linear-gradient(180deg, #f2fbf5, var(--paper)); display: grid; align-content: center; justify-items: center; gap: 14px; padding: 24px 20px calc(24px + env(safe-area-inset-bottom)); text-align: center; animation: in 0.4s var(--ease); }
+.breath__orb { width: min(64vw, 280px); aspect-ratio: 1; position: relative; }
+.breath__orb canvas { width: 100%; height: 100%; }
+.breath__cue { font-size: clamp(1.8rem, 7vw, 2.4rem); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.breath__sub { color: var(--ink-2); max-width: 340px; font-size: 15px; }
+.breath__bar { width: min(320px, 80vw); height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.breath__bar i { display: block; height: 100%; width: 0; background: var(--green); transition: width 0.2s linear; }
+.breath__live { font: 500 13px var(--mono); color: var(--muted); min-height: 1.2em; }
