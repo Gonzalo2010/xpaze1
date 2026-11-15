@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>The check-up · XPaze</title>
+  <meta name="description" content="The XPaze Station opens piece by piece, and an astronaut does a check-up with it." />
+  <meta name="theme-color" content="#03050a" />
+  <link rel="icon" href="/favicon.png" type="image/png" />
+</head>
+<body>
+  <canvas id="scene" aria-label="3D scene: the XPaze Station and an astronaut doing a check-up"></canvas>
+
+  <header class="top">
+    <a class="brand" href="/"><img src="/logo-mark.png" alt="" width="30" height="25" onerror="this.src='/logo-mark-dark.png';this.style.filter='invert(1)'" />XPaze</a>
+    <a class="pill" href="/app/" data-i="Probar la app|Try the app">Try the app</a>
+  </header>
+
+  <div class="cap"><span id="step"></span><p id="caption"></p></div>
+
+  <aside class="hud" id="hud" aria-live="polite">
+    <div class="hud__head"><span class="hud__dot"></span><b data-i="Chequeo en curso|Check-up in progress">Check-up in progress</b>
+      <span class="hud__ring"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" class="bg"/><circle id="ring" cx="20" cy="20" r="16" class="fg" pathLength="100"/></svg><i id="pct">0 %</i></span></div>
+    <canvas id="ecg" aria-hidden="true"></canvas>
+    <div class="hud__tiles">
+      <div data-tile><small data-i="Pulso|Heart rate">Heart rate</small><b data-v="hr">—</b><em data-i="lpm|bpm">bpm</em></div>
+      <div data-tile><small data-i="Oxígeno|Oxygen">Oxygen</small><b data-v="spo2">—</b><em>%</em></div>
+      <div data-tile><small data-i="Ritmo (ECG)|Rhythm (ECG)">Rhythm (ECG)</small><b data-v="rhythm" class="txt">—</b></div>
+      <div data-tile><small data-i="Temperatura|Temperature">Temperature</small><b data-v="temp">—</b><em>°C</em></div>
+      <div data-tile><small>HRV</small><b data-v="hrv">—</b><em>ms</em></div>
+      <div data-tile><small data-i="Tensión (PTT)|BP (PTT)">BP (PTT)</small><b data-v="bp">—</b></div>
+    </div>
+    <div class="verdict" id="verdict"><span></span><b data-i="Verde · todo en rango|Green · all in range">Green · all in range</b></div>
+    <p class="hud__note" data-i="Constantes simuladas latido a latido|Vitals simulated beat by beat">Vitals simulated beat by beat</p>
+  </aside>
+
+  <div class="fin" id="fin">
+    <button id="replay" type="button" data-i="Ver otra vez|Watch again">Watch again</button>
+    <a href="/app/" data-i="Hazte tú el chequeo|Do the check-up yourself">Do the check-up yourself</a>
+  </div>
+  <p class="loading" data-i="Cargando la estación…|Loading the station…">Loading the station…</p>
+  <script type="module" src="/src/scene/main.js"></script>
+</body>
+</html>
