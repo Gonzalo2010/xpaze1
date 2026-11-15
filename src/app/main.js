@@ -1,6 +1,7 @@
 // XPaze App (PWA): conecta con la estación por Bluetooth o con una simulada,
 // muestra las lecturas en directo y hace chequeos que se comparan contigo.
 
+import '../fonts.css';
 import './app.css';
 import { BleLink, SimLink, WifiLink, bluetoothAvailable, wifiAvailable } from './link.js';
 import { MEASURES, ENVIRONMENTS, PHQ2, PHQ2_ANSWERS, RED_FLAGS, SELF_HARM, isSelfHarm, classify, actionPlan, cabinLevel, co2Level } from './clinical.js';
@@ -156,7 +157,7 @@ function welcome() {
       }).join('')}</div>
       <button class="btn btn--line btn--block crew-btn" data-act="crew">${icon('chart')} ${L('Vista del oficial médico: toda la tripulación', 'Medical officer view: the whole crew')}</button>
       <button class="linkish welcome__hw" data-act="connect">${S.link && S.link.kind !== 'sim' ? `${L('Conectado a', 'Connected to')} ${esc(S.link.name)}` : L('Tengo la XPaze Station: conectar por Bluetooth o WiFi', 'I have the XPaze Station: connect via Bluetooth or WiFi')}</button>
-      <p class="fine">${L('Prototipo de investigación. No es un dispositivo médico.', 'Research prototype. Not a medical device.')}</p>
+      <p class="fine">${L('Prototipo de investigación. No es un dispositivo médico.', 'Research prototype. Not a medical device.')} <a href="/legal/#${L('privacidad', 'privacy')}">${L('Privacidad', 'Privacy')}</a> · <a href="/legal/#${L('aviso', 'notice')}">${L('Aviso legal', 'Legal notice')}</a> · <a href="/legal/#${L('medico', 'medical')}">${L('Aviso médico', 'Medical disclaimer')}</a></p>
     </section>`);
   const onboarded = () => { if (!saved.onboarded) { saved.onboarded = true; store.save(saved); } };
   node.querySelectorAll('[data-uid]').forEach((b) => b.addEventListener('click', () => { onboarded(); enter(b.dataset.uid); }));
@@ -266,7 +267,7 @@ function choose() {
       </div>
       ${!secure ? `<p class="note">${L('Bluetooth necesita una conexión segura (https). Abre la app desde su dirección https.', 'Bluetooth needs a secure connection (https). Open the app from its https address.')}</p>`
         : !ble ? `<p class="note">${L('Este navegador no tiene Web Bluetooth. Usa Chrome en Android o en un ordenador. En iPhone, solo la estación simulada.', 'This browser does not support Web Bluetooth. Use Chrome on Android or on a computer. On iPhone, only the simulated station works.')}</p>` : ''}
-      <p class="fine">${L('Prototipo de investigación. No es un dispositivo médico.', 'Research prototype. Not a medical device.')}</p>
+      <p class="fine">${L('Prototipo de investigación. No es un dispositivo médico.', 'Research prototype. Not a medical device.')} <a href="/legal/#${L('privacidad', 'privacy')}">${L('Privacidad', 'Privacy')}</a> · <a href="/legal/#${L('aviso', 'notice')}">${L('Aviso legal', 'Legal notice')}</a> · <a href="/legal/#${L('medico', 'medical')}">${L('Aviso médico', 'Medical disclaimer')}</a></p>
     </section>`);
   node.querySelector('[data-act="ble"]').onclick = () => startBle();
   node.querySelector('[data-act="sim"]').onclick = () => startSim();
@@ -1203,7 +1204,8 @@ function healthBox() {
   const code = saved.healthCodes[S.person?.uid];
   if (!code) {
     return `<p class="fine">${L('Instala XPaze Link en el móvil emparejado con el reloj y escribe aquí su código.', 'Install XPaze Link on the phone paired with the watch and enter its code here.')}</p>
-      <div class="compose"><input class="code-in" maxlength="9" placeholder="${L('Código (8 caracteres)', 'Code (8 characters)')}" autocapitalize="characters" autocomplete="off" aria-label="${L('Código de XPaze Link', 'XPaze Link code')}"/><button class="btn btn--dark" data-act="hlink">${L('Vincular', 'Link')}</button></div>`;
+      <div class="compose"><input class="code-in" maxlength="9" placeholder="${L('Código (8 caracteres)', 'Code (8 characters)')}" autocapitalize="characters" autocomplete="off" aria-label="${L('Código de XPaze Link', 'XPaze Link code')}"/><button class="btn btn--dark" data-act="hlink">${L('Vincular', 'Link')}</button></div>
+      <p class="fine">${L('Al vincular aceptas que XPaze lea los datos de salud de tu reloj (se guardan 48 h como máximo, sin tu nombre) y los use con la IA.', 'By linking you agree that XPaze reads your watch health data (kept for 48 h at most, without your name) and uses it with the AI.')} <a href="/legal/#${L('privacidad', 'privacy')}">${L('Privacidad', 'Privacy')}</a></p>`;
   }
   const h = S.health;
   if (!h) return `<p class="fine">${L('Buscando datos del código', 'Looking for data from code')} ${esc(code)}…</p><button class="chip-btn" data-act="hunlink">${L('Desvincular', 'Unlink')}</button>`;
@@ -1500,7 +1502,7 @@ function memoryBox() {
       <textarea rows="3" maxlength="1500" data-act="about" placeholder="${L('Ej.: prefiero que vaya al grano; me ayuda salir a correr; estos días me preocupa la presentación.', 'E.g. I prefer you get to the point; running helps me; I am worried about the presentation these days.')}">${esc(saved.about[uid] || '')}</textarea></label>
     ${facts.length ? `<p class="fine"><b>${L('Lo que ha aprendido de ti', 'What it has learned about you')}</b></p><ul>${facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
     ${mem.length ? `<p class="fine"><b>${L('Sesiones anteriores', 'Previous sessions')}</b></p><ul>${mem.slice().reverse().map((m) => `<li><small>${new Date(m.at).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>${esc(m.summary)}</li>`).join('')}</ul>` : ''}
-    <p class="fine">${L('Todo esto se guarda solo en este dispositivo.', 'All of this is stored only on this device.')}</p>
+    <p class="fine">${L('Todo esto se guarda solo en este dispositivo. Para que Paze te entienda, se le envía en cada conversación (no se guarda en nuestro servidor). Usa datos simulados si no quieres compartir los reales.', 'All of this is stored only on this device. So that Paze understands you, it is sent to her in each conversation (it is not stored on our server). Use simulated data if you do not want to share real data.')} <a href="/legal/#${L('privacidad', 'privacy')}">${L('Privacidad', 'Privacy')}</a></p>
     ${mem.length || facts.length ? `<button class="chip-btn" data-act="forget">${L('Olvidar todo', 'Forget everything')}</button>` : ''}</details>`;
 }
 

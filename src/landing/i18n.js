@@ -78,6 +78,10 @@ export function initI18n(doc = document) {
 
 const DICT = {
   en: {
+    "h.foot-legal": "Legal notice",
+    "h.foot-privacy": "Privacy",
+    "h.foot-cookies": "Cookies",
+    "h.foot-medical": "Medical disclaimer",
     "h.v2-sensors-lead": "Twelve sensors in one gesture. You can try all of them in the app, with a station simulated beat by beat.",
     "h.v2-sensors-title": "The sensors of station v2.",
     "h.s-rfid-d": "Identifies each astronaut by their card.",
@@ -474,6 +478,10 @@ const DICT = {
     "meta.ogLocaleEs": "es_ES",
   },
   es: {
+    "h.foot-legal": "Aviso legal",
+    "h.foot-privacy": "Privacidad",
+    "h.foot-cookies": "Cookies",
+    "h.foot-medical": "Aviso médico",
     "h.v2-sensors-lead": "Doce sensores en un solo gesto. Puedes probarlos todos en la app, con una estación simulada latido a latido.",
     "h.v2-sensors-title": "Los sensores de la estación v2.",
     "h.s-rfid-d": "Identifica a cada astronauta por su tarjeta.",

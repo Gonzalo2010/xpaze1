@@ -15,6 +15,7 @@ export default defineConfig({
         main: resolve(import.meta.dirname, 'index.html'),
         demo: resolve(import.meta.dirname, 'demo/index.html'),
         app: resolve(import.meta.dirname, 'app/index.html'),
+        legal: resolve(import.meta.dirname, 'legal/index.html'),
       },
     },
   },

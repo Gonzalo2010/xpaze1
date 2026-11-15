@@ -1,5 +1,6 @@
 // XPaze v2 — scroll suave, animaciones ligadas al scroll e interacciones.
 
+import './fonts.css';
 import './style.css';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';

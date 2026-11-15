@@ -1,5 +1,6 @@
 // XPaze Demo — arranque, enrutado por hash y marco común (cabecera, navegación, idioma).
 
+import '../fonts.css';
 import './demo.css';
 import * as store from './core/store.js';
 import * as i18n from './core/i18n.js';
