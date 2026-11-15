@@ -60,7 +60,8 @@ test('aire de cabina según NASA-STD-3001', () => {
 test('cada medición tiene por qué, pasos, rango y fuente', () => {
   for (const [id, m] of Object.entries(MEASURES)) {
     assert.ok(m.why.length > 60, id);
-    assert.ok(m.steps.length >= 3, id);
+    // los sensores de la estación v2 se miden solos mientras agarras los asideros: basta un paso
+    assert.ok(m.steps.length >= (['temp', 'resp', 'rhythm', 'qtc'].includes(id) ? 1 : 3), id);
     assert.ok(m.range.green && m.range.yellow && m.range.red, id);
     assert.ok(m.ref, id);
   }

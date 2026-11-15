@@ -25,6 +25,24 @@ XPaze uses **fixed, explainable thresholds** to set the traffic light (green / y
 
 **Design choices (not taken from a source):** sleep < 4 h as red (acute safety), stress ≥ 8 as yellow, the systolic 91–100 band as yellow (NEWS2 scores it 2), and mapping glucose to Food and Nutrition / Medical Conditions (no HRP risk is specific to glucose).
 
+## Station v2 extended sensors (simulated in the cloud demo)
+
+The physical prototype measures heart rate and SpO₂ (MAX3010x), cabin air (AHT20 + BMP280) and identifies the person with an RFID card (RC522). The **cloud demo** (`/app/`, simulated station) also simulates the planned **station v2** sensors. The physiology model is in [`src/app/simbody.js`](../src/app/simbody.js), tested in `tests/simbody.test.js`. Heart rate, RMSSD and rhythm are **computed from the generated beats** with the same function the hardware would use (`analyzeRR`), not copied from the scenario.
+
+| Measurement | Sensor (v2) | Green | Yellow | Red | Sources |
+|---|---|---|---|---|---|
+| Body temperature (°C) | Contactless IR | 36.1–38.0 | 35.1–36.0 · ≥ 38.1 | ≤ 35.0 | NEWS2 [1] (≥ 39.1 scores 2, so it stays yellow) |
+| Breathing rate (breaths/min) | Derived from ECG/PPG respiratory modulation | 12–20 | 9–11 · 21–24 | ≤ 8 · ≥ 25 | NEWS2 [1] |
+| Heart rhythm | Single-lead ECG (copper handles, lead I) | sinus | frequent ectopic beats · irregular rhythm (possible AF) | — | ESC 2020 AF guidelines [13]: a single-lead ECG must be confirmed by a physician |
+| QTc (ms, Bazett) | Same ECG | < 460 | 460–499 | ≥ 500 | AHA/ACCF/HRS 2009 [14]; Drew et al. 2010 [15] |
+| HRV (RMSSD, ms) | Same ECG | — | well below the person's own baseline (below median − 2.5 robust SD) | — | No universal threshold: personal baseline only |
+| Cabin CO₂ (mmHg) | NDIR CO₂ | ≤ 2.5 | 2.5–3 | > 3 | NASA-STD-3001 Vol. 2 [V2 6004] (≤ 3 mmHg, 1-h average) and OCHMO-TB-004 [11] |
+| Dose rate (µSv/h) | Dosimeter | < 60 | ≥ 60 (Mars-transit level) | ≥ 200 (solar particle event) | Zeitlin et al. 2013 [16]: ≈ 1.8 mSv/day in Mars transit (≈ 75 µSv/h) |
+
+**Information only (never sets the color):** cuffless blood pressure from pulse transit time (experimental; only the cuff reading counts), electrodermal activity (stress) and grip strength (tracks muscle loss, NASA HRP risk of reduced muscle mass and strength). Cabin CO₂ and radiation are environmental risks: they are shown with their own color, but they do not change the person's check-up color.
+
+**Rhythm detection (`analyzeRR`):** an ectopic beat is an RR interval under 80 % of the median followed by a pause over 115 %. The rhythm is irregular when more than 45 % of successive RR differences exceed 12 % of the median RR. The test suite runs 25 resting seeds with no false positives, and detects atrial fibrillation and ectopic beats in every seed tested.
+
 ## Space weather (live, NASA DONKI)
 
 XPaze reads the space weather notifications from **DONKI**, the database of the NASA Community Coordinated Modeling Center (https://api.nasa.gov, `DONKI/notifications`). The server fetches them once every 3 hours and caches them.
@@ -97,5 +115,9 @@ Astronaut physiological data (wearables, ECG, cognition) is **not public**. It i
 10. Basner M, Mollicone D, Dinges DF. *Validity and sensitivity of a brief psychomotor vigilance test (PVT-B).* Acta Astronautica 2011;69:949. https://pmc.ncbi.nlm.nih.gov/articles/PMC3197786
 11. NASA. *NASA-STD-3001 Vol. 2*; OCHMO-TB-002 (ECLSS) https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-002-eclss.pdf; OCHMO-TB-004 (CO₂) https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-004-carbon-dioxide.pdf
 12. Liu S et al. *Towards Emotional Support Dialog Systems* (ESConv). ACL 2021. https://github.com/thu-coai/Emotional-Support-Conversation (CC BY-NC 4.0). Strategy taxonomy adapted; no dialogues redistributed.
+13. Hindricks G et al. *2020 ESC Guidelines for the diagnosis and management of atrial fibrillation.* Eur Heart J 2021;42:373. https://doi.org/10.1093/eurheartj/ehaa612
+14. Rautaharju PM et al. *AHA/ACCF/HRS Recommendations for the Standardization and Interpretation of the Electrocardiogram, Part IV: the ST segment, T and U waves, and the QT interval.* Circulation 2009;119:e241. https://doi.org/10.1161/CIRCULATIONAHA.108.191096
+15. Drew BJ et al. *Prevention of Torsade de Pointes in Hospital Settings.* Circulation 2010;121:1047. https://doi.org/10.1161/CIRCULATIONAHA.109.192704
+16. Zeitlin C et al. *Measurements of Energetic Particle Radiation in Transit to Mars on the Mars Science Laboratory.* Science 2013;340:1080. https://doi.org/10.1126/science.1235989
 
 **Not verified directly:** the NEWS2 bands were taken from reproductions of the official chart; the WHO cut-offs came from copies of the manual; the 2025 BP guideline update was seen only in secondary summaries.

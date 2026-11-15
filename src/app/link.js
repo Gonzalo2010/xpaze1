@@ -7,6 +7,7 @@ import {
   UUID, CMD, decodeVitals, decodeWave, decodeCard, decodeWatch, decodeStatus,
   encodeVitals, encodeWave, encodeCard, encodeWatch, encodeStatus,
 } from './protocol.js';
+import { SimBody, ECG_RATE } from './simbody.js';
 
 const DECODERS = {
   vitals: decodeVitals, wave: decodeWave, card: decodeCard, watch: decodeWatch, status: decodeStatus,
@@ -139,6 +140,8 @@ export class SimLink extends Emitter {
     this.waveSeq = 0;
     this.watchSpo2At = null;
     this.timers = [];
+    this.body = new SimBody(seed + 4);
+    this.t = 0; // segundos de simulación
   }
 
   rnd() { this.s = (this.s * 16807) % 2147483647; return this.s / 2147483647; }
@@ -148,6 +151,10 @@ export class SimLink extends Emitter {
   setFinger(on) { if (on !== this.finger) { this.finger = on; this.fingerSince = performance.now(); } }
   tapCard(uid) { this.card = { uid, at: performance.now() }; this.emitCard(true); }
   setProfile({ bpm, spo2 }) { if (bpm) this.targetBpm = bpm; if (spo2) this.spo2 = spo2; }
+  /** Fisiología de la persona (pulso, HRV, tensión…) y escenario de la simulación ampliada. */
+  setBody(base) { this.body.setBase(base); this.body.settle(); this.bpm = this.body.cur.hr; this.targetBpm = this.body.target.hr; this.spo2 = this.body.target.spo2; }
+  setScenario(key, { instant = false } = {}) { this.body.setScenario(key); if (instant) { this.body.settle(); this.bpm = this.body.cur.hr; } this.targetBpm = this.body.target.hr; this.spo2 = this.body.target.spo2; this.slow(); }
+  get scenario() { return this.body.scenario || 'rest'; }
   setWatch(on) { this.watchOn = on; this.slow(); }
 
   async connect() {
@@ -156,19 +163,24 @@ export class SimLink extends Emitter {
     this.timers.push(setInterval(() => this.fast(), 120));
     this.timers.push(setInterval(() => this.slow(), 1000));
     this.packet('status', encodeStatus({ arduino: true, aht: true, bmp: true, ppg: true, rfid: true, test: true, watch: this.watchOn }));
+    this.emit('ext-status', { ecg: true, ir: true, eda: true, grip: true, co2: true, dosimeter: true });
     this.slow();
     this.emit('link', { state: 'connected', name: this.name });
   }
 
   fast() {
-    // 3 muestras cada 120 ms ≈ 25 por segundo
+    // 120 ms: 30 muestras de ECG (250 Hz) y 3 de la onda del dedo (25 Hz), del mismo latido
+    const b = this.body;
+    b.step(0.12);
+    const ecg = b.ecg(Math.round(ECG_RATE * 0.12));
+    this.bpm = b.cur.hr;
     const out = [];
     for (let i = 0; i < 3; i++) {
-      this.bpm += (this.targetBpm - this.bpm) * 0.002;
+      const t = (b.n - 30 + i * 10) / ECG_RATE;
       let ir;
       if (this.finger) {
-        this.phase = (this.phase + this.bpm / 60 / RATE) % 1;
-        const beat = Math.exp(-((this.phase - 0.2) ** 2) / 0.006);
+        let beat = 0;
+        for (const bt of b.beats) { const x = t - bt.t - b.ptt; if (x > -0.1 && x < 0.8) beat += Math.exp(-((x - 0.09) ** 2) / 0.004) + 0.35 * Math.exp(-((x - 0.33) ** 2) / 0.006); }
         const drift = 300 * Math.sin((2 * Math.PI * 0.22 * this.n) / RATE);
         ir = 102000 + drift - 850 * beat + this.gauss() * 35;
       } else {
@@ -180,6 +192,8 @@ export class SimLink extends Emitter {
     }
     this.waveSeq = (this.waveSeq + 1) & 0xff;
     this.packet('wave', encodeWave(this.waveSeq, out));
+    // los asideros miden el ECG cuando se agarran (con el dedo puesto) — en la simulación, siempre
+    this.emit('ecg', { samples: ecg, rate: ECG_RATE, contact: true });
   }
 
   slow() {
@@ -190,7 +204,7 @@ export class SimLink extends Emitter {
     this.packet('vitals', encodeVitals(this.seq, {
       quality,
       bpm: quality === 'good' ? Math.round(this.bpm + this.gauss()) : null,
-      spo2: quality === 'good' && on > 6 ? Math.round(this.spo2 + this.gauss() * 0.4) : null,
+      spo2: quality === 'good' && on > 6 ? Math.round(this.body.cur.spo2 + this.gauss() * 0.4) : null,
       temperature: 22.4 + 0.3 * Math.sin(t / 120) + this.gauss() * 0.03,
       humidity: 41 + Math.sin(t / 90),
       pressure: 1012.6 + 0.2 * Math.sin(t / 300),
@@ -199,12 +213,13 @@ export class SimLink extends Emitter {
     if (this.watchOn) {
       const measuring = this.watchSpo2At != null && performance.now() - this.watchSpo2At < 30000;
       w = {
-        bpm: Math.round(this.bpm + this.gauss() * 1.2), skin: 33.6 + this.gauss() * 0.05, battery: 78,
+        bpm: Math.round(this.bpm + this.gauss() * 1.2), skin: 33.6 + (this.body.cur.temp - 36.6) * 0.6 + this.gauss() * 0.05, battery: 78,
         spo2: this.watchSpo2At != null && !measuring ? 97 : null, spo2Measuring: measuring,
         ibi: Math.round(60000 / this.bpm),
       };
     }
     this.packet('watch', encodeWatch(w));
+    this.emit('ext', this.body.readings());
     this.emitCard(false);
   }
 

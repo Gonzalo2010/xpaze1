@@ -156,6 +156,7 @@ function cleanContext(raw) {
   const live = kv(c.live, 12);
   const watch = kv(c.watch, 8);
   const samsung = kv(c.samsung, 12);
+  const station = kv(c.station, 12);
   const check = list(c.lastCheck, 8, 260);
   const plan = list(c.plan, 8, 220);
   const history = list(c.history, 14, 200);
@@ -175,6 +176,7 @@ function cleanContext(raw) {
     history.length && `Historial reciente (de más antiguo a más reciente):\n- ${history.join('\n- ')}`,
     live && `Constantes en directo ahora: ${live}`,
     watch && `Reloj: ${watch}`,
+    station && `Estación v2 (sensores ampliados, SIMULADOS en esta demo): ${station}`,
     samsung && `Samsung Health (datos REALES del reloj de la persona vía Health Connect): ${samsung}`,
     today && `Métricas de hoy: ${today}`,
     mind.length && `Módulo Mente: ${mind.join(' | ')}`,
@@ -191,7 +193,7 @@ function cleanContext(raw) {
 
 function cleanCheck(body) {
   const c = body?.check;
-  if (!c || typeof c !== 'object' || !Array.isArray(c.results) || !c.results.length || c.results.length > 8) return null;
+  if (!c || typeof c !== 'object' || !Array.isArray(c.results) || !c.results.length || c.results.length > 14) return null;
   const COLORS = ['verde', 'amarillo', 'rojo'];
   const lines = c.results.map((r) => `- ${str(r.name, 60)}: ${str(String(r.display ?? ''), 40)} → ${COLORS[r.level] ?? '?'} (${str(r.reason, 200)})`);
   const plan = c.plan && typeof c.plan === 'object' ? c.plan : {};
@@ -204,6 +206,7 @@ function cleanCheck(body) {
     plan.crew && `Tripulación: ${str(plan.crew, 200)}`,
     plan.surgeon && `Cirujano de vuelo: ${str(plan.surgeon, 240)}`,
     plan.evac && `Evacuación: ${str(plan.evac, 160)}`,
+    c.station && typeof c.station === 'object' && `Otros datos de la estación (no deciden el color): ${Object.entries(c.station).slice(0, 8).map(([k, v]) => `${str(k, 30)}: ${str(typeof v === 'object' ? JSON.stringify(v) : String(v), 60)}`).join('; ')}`,
     c.simulated && 'Atención: datos simulados (demo).',
   ].filter(Boolean).join('\n');
   return { messages: [{ role: 'user', content: 'Explícame el resultado de mi chequeo.' }], context, system: EXPLAINER, label: 'Chequeo clasificado por reglas fijas' };

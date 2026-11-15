@@ -3,7 +3,8 @@
 
 import './app.css';
 import { BleLink, SimLink, WifiLink, bluetoothAvailable, wifiAvailable } from './link.js';
-import { MEASURES, ENVIRONMENTS, PHQ2, PHQ2_ANSWERS, RED_FLAGS, SELF_HARM, isSelfHarm, classify, actionPlan, cabinLevel } from './clinical.js';
+import { MEASURES, ENVIRONMENTS, PHQ2, PHQ2_ANSWERS, RED_FLAGS, SELF_HARM, isSelfHarm, classify, actionPlan, cabinLevel, co2Level } from './clinical.js';
+import { baselineBand, baselineChart, drawEcg } from './charts.js';
 import { streamAI } from './ai.js';
 import { PazeOrb, bindOrbToVoice } from './paze-orb.js';
 import { assessSpace } from './space.js';
@@ -45,11 +46,14 @@ const S = {
   link: null, linkState: 'idle', status: null, vitals: null, watch: null,
   person: null,        // { uid, name, role, crew }
   wave: [],            // últimas muestras de la onda
+  ecg: [],             // últimas muestras del ECG (250 Hz)
+  ext: null,           // sensores ampliados de la estación v2 (solo en la simulada)
   screen: 'welcome',
   check: null,         // medición en curso
   result: null,
 };
 const WAVE_MAX = 150;  // 6 s a 25 muestras/s
+const ECG_MAX = 1250;  // 5 s a 250 muestras/s
 
 // Perfiles reales (no son tripulación ficticia): sus datos vienen del reloj vía XPaze Link.
 const REAL_PEOPLE = { GONZALO: { name: 'Gonzalo', get role() { return L('Perfil real · Galaxy Watch', 'Real profile · Galaxy Watch'); }, hue: 145 } };
@@ -139,6 +143,7 @@ function welcome() {
         </ol>
         <button type="button" class="onboard__ok" data-act="onboard-ok">${L('Entendido', 'Got it')}</button>
       </aside>`}
+      <button class="demo-btn" data-act="demo"><span class="demo-btn__play"></span><span><b>${L('Ver la demo de 60 segundos', 'Watch the 60-second demo')}</b><small>${L('Se reproduce sola, con subtítulos', 'It plays by itself, with captions')}</small></span></button>
       <div class="people">${PEOPLE.map((x) => {
         const p = personFromUid(x.uid);
         return `<button class="pc ${p.real ? 'pc--real' : ''}" data-uid="${x.uid}" style="--hue:${p.hue}">
@@ -153,6 +158,7 @@ function welcome() {
   const onboarded = () => { if (!saved.onboarded) { saved.onboarded = true; store.save(saved); } };
   node.querySelectorAll('[data-uid]').forEach((b) => b.addEventListener('click', () => { onboarded(); enter(b.dataset.uid); }));
   node.querySelector('[data-act="connect"]').onclick = () => go('choose');
+  node.querySelector('[data-act="demo"]').onclick = () => { onboarded(); runDemo(); };
   const ok = node.querySelector('[data-act="onboard-ok"]');
   if (ok) ok.onclick = () => { onboarded(); ok.closest('.onboard').remove(); };
   wireLangSwitch(node, relang);
@@ -273,7 +279,7 @@ function attach(link) {
   S.link?.disconnect();
   S.link = link;
   S.status = S.vitals = S.watch = null;
-  S.wave = [];
+  S.wave = []; S.ecg = []; S.ext = null; S.extStatus = null;
   link.on(onEvent);
   saved.lastMode = link.kind;
   store.save(saved);
@@ -362,6 +368,7 @@ function live() {
         <div class="tile tile--hr"><small>${L('Pulso', 'Heart rate')}</small><b data-live="bpm">—</b><em>${L('lpm', 'bpm')}</em></div>
         <div class="tile"><small>${L('Oxígeno estimado', 'Estimated oxygen')}</small><b data-live="spo2">—</b><em>%</em></div>
       </div>
+      ${S.link?.kind === 'sim' ? extBlock() : ''}
 
       <div class="envsel"><span>${L('Entorno', 'Environment')}</span><div class="seg seg--wrap">${Object.entries(ENVIRONMENTS).map(([k, e]) => `<button data-env="${k}" class="${k === envKey() ? 'is-on' : ''}">${e.short}</button>`).join('')}</div></div>
       <button class="btn btn--dark btn--block" data-act="check" ${p ? '' : 'disabled'}>${L('Empezar chequeo guiado', 'Start guided check-up')}</button>
@@ -399,6 +406,33 @@ function live() {
   return node;
 }
 
+// Estación v2 (solo en la simulada): ECG de los asideros y sensores ampliados.
+function extBlock() {
+  const tile = (k, n, u, extra = '') => `<div class="tile tile--sm ${extra}" data-tile="${k}"><small>${n}</small><b data-live="x-${k}">—</b><em>${u}</em></div>`;
+  return `
+      <div class="ecgbox">
+        <div class="wavebox__head"><span>ECG · ${L('asideros (derivación I)', 'handles (lead I)')}</span><span data-live="x-rhythm">—</span></div>
+        <canvas class="ecg" data-live="ecg" aria-hidden="true"></canvas>
+        <div class="ecgbox__foot"><span>25 mm/s · 10 mm/mV</span><span data-live="x-ecghr"></span></div>
+      </div>
+      <h3 class="section-t">${L('Estación v2 · sensores ampliados', 'Station v2 · extended sensors')} <span class="pill-sim">${L('simulados', 'simulated')}</span></h3>
+      <div class="tiles tiles--3 xtiles">
+        ${tile('temp', L('Temperatura', 'Temperature'), '°C')}
+        ${tile('resp', L('Respiración', 'Breathing'), 'rpm')}
+        ${tile('hrv', 'HRV · RMSSD', 'ms')}
+        ${tile('qtc', 'QTc', 'ms')}
+        ${tile('bp', L('Tensión (PTT)', 'BP (PTT)'), 'mmHg')}
+        ${tile('eda', L('Estrés · EDA', 'Stress · EDA'), 'µS')}
+        ${tile('grip', L('Agarre', 'Grip'), 'kg')}
+        ${tile('co2', 'CO₂', 'mmHg')}
+        ${tile('dose', L('Radiación', 'Radiation'), 'µSv/h')}
+      </div>
+      <p class="fine">${L('El prototipo físico mide pulso, SpO₂ y el aire de la cabina. Estos sensores son los de la estación v2 y aquí se simulan con valores fisiológicos publicados; el pulso, la HRV y el ritmo se calculan de los latidos, no se inventan.', 'The physical prototype measures heart rate, SpO₂ and cabin air. These are the station v2 sensors, simulated here with published physiological values; heart rate, HRV and rhythm are computed from the beats, not made up.')}</p>`;
+}
+
+const RHYTHM_TXT = { sinus: ['Ritmo sinusal', 'Sinus rhythm'], ectopics: ['Extrasístoles', 'Ectopic beats'], irregular: ['Ritmo irregular', 'Irregular rhythm'] };
+const rhythmText = (r) => (r && RHYTHM_TXT[r] ? L(...RHYTHM_TXT[r]) : L('Analizando…', 'Analysing…'));
+
 function simPanel() {
   return `
     <details class="sim" open>
@@ -407,22 +441,29 @@ function simPanel() {
         <div class="seg">${PEOPLE.map((c) => `<button data-sim-card="${c.uid}">${esc(c.name.split(' ')[0])}</button>`).join('')}</div></div>
       <div class="sim__row"><span>${L('Dedo en el sensor', 'Finger on sensor')}</span><button class="switch" data-sim="finger" aria-pressed="false" aria-label="${L('Dedo en el sensor', 'Finger on sensor')}"><i></i></button></div>
       <div class="sim__row"><span>${L('Reloj conectado', 'Watch connected')}</span><button class="switch" data-sim="watch" aria-pressed="true" aria-label="${L('Reloj conectado', 'Watch connected')}"><i></i></button></div>
-      <div class="sim__row"><span>${L('Situación', 'Scenario')}</span>
-        <div class="seg seg--wrap">
-          <button data-sim-prof="rest" class="is-on">${L('Reposo', 'Resting')}</button>
-          <button data-sim-prof="exercise">${L('Tras entrenar', 'After exercise')}</button>
-          <button data-sim-prof="fever">${L('Fiebre', 'Fever')}</button>
-          <button data-sim-prof="lowo2">${L('Oxígeno bajo', 'Low oxygen')}</button>
-        </div></div>
+      <div class="sim__row sim__row--col"><span>${L('Qué le pasa a esta persona', 'What is happening to this person')}</span>
+        <div class="seg seg--wrap seg--left">${SIM_SCENARIOS.map(([k]) => `<button data-sim-prof="${k}" class="${S.link?.scenario === k ? 'is-on' : ''}">${SCEN_NAME(k)}</button>`).join('')}</div>
+        <p class="fine" data-live="scen">${SCEN_DESC(S.link?.scenario || 'rest')}</p></div>
     </details>`;
 }
 
-const PROFILES = {
-  rest: () => ({ bpm: S.person?.crew?.hr ?? 64, spo2: 98 }),
-  exercise: () => ({ bpm: 112, spo2: 97 }),
-  fever: () => ({ bpm: (S.person?.crew?.hr ?? 64) + 24, spo2: 96 }),
-  lowo2: () => ({ bpm: (S.person?.crew?.hr ?? 64) + 6, spo2: 91 }),
-};
+// Situaciones de la estación simulada (src/app/simbody.js): [clave, nombre es, nombre en, descripción es, descripción en]
+const SIM_SCENARIOS = [
+  ['rest', 'Reposo', 'Resting', 'Todo normal: su línea base.', 'All normal: their baseline.'],
+  ['day58', 'Día 58 (la historia)', 'Day 58 (the story)', 'Tres noches durmiendo poco: nada sale de los rangos generales, pero el pulso, la HRV y el estrés se alejan de SU normal.', 'Three nights of short sleep: nothing leaves the general ranges, but heart rate, HRV and stress drift away from THEIR normal.'],
+  ['af', 'Fibrilación auricular', 'Atrial fibrillation', 'Latidos irregulares sin patrón y sin onda P: el ECG lo detecta.', 'Irregular beats with no pattern and no P wave: the ECG detects it.'],
+  ['pvc', 'Extrasístoles', 'Ectopic beats', 'Latidos adelantados y anchos con pausa compensadora.', 'Early, wide beats with a compensatory pause.'],
+  ['fever', 'Fiebre', 'Fever', 'Infección: temperatura, pulso y respiración suben.', 'Infection: temperature, heart rate and breathing go up.'],
+  ['lowo2', 'Oxígeno bajo', 'Low oxygen', 'SpO₂ baja y respiración rápida.', 'Low SpO₂ and fast breathing.'],
+  ['qt', 'QTc largo (medicación)', 'Long QTc (medication)', 'Un antiemético del botiquín alarga el QTc.', 'An anti-nausea drug from the kit lengthens the QTc.'],
+  ['stress', 'Estrés agudo', 'Acute stress', 'HRV hundida y actividad electrodérmica alta.', 'HRV drops and electrodermal activity rises.'],
+  ['exercise', 'Tras entrenar', 'After exercise', 'Esfuerzo reciente: no es reposo.', 'Recent effort: not a resting reading.'],
+  ['co2', 'CO₂ alto en cabina', 'High cabin CO₂', 'El depurador de CO₂ falla: afecta a toda la tripulación.', 'The CO₂ scrubber is failing: it affects the whole crew.'],
+  ['spe', 'Tormenta solar', 'Solar storm', 'Evento de partículas: el dosímetro se dispara.', 'Particle event: the dosimeter shoots up.'],
+];
+const SCEN = Object.fromEntries(SIM_SCENARIOS.map((x) => [x[0], x]));
+const SCEN_NAME = (k) => L(SCEN[k][1], SCEN[k][2]);
+const SCEN_DESC = (k) => L(SCEN[k][3], SCEN[k][4]);
 
 function wire(node) {
   node.querySelector('[data-act="menu"]')?.addEventListener('click', () => go(S.screen === 'home' ? 'welcome' : 'home'));
@@ -458,15 +499,23 @@ function wire(node) {
   });
   node.querySelectorAll('[data-sim-prof]').forEach((b) => b.addEventListener('click', () => {
     node.querySelectorAll('[data-sim-prof]').forEach((x) => x.classList.toggle('is-on', x === b));
-    S.link.setProfile(PROFILES[b.dataset.simProf]());
+    S.link.setScenario(b.dataset.simProf);
+    setText('scen', SCEN_DESC(b.dataset.simProf));
   }));
+}
+
+// Fisiología de cada persona para el cuerpo simulado (de su ficha de tripulación).
+function personBody(p) {
+  const c = p?.crew || {};
+  const h = (p?.uid || 'X').split('').reduce((a, ch) => a + ch.charCodeAt(0), 0);
+  return { hr: c.hr ?? 64, rmssd: c.hrv ?? 45, temp: c.temp ?? 36.6, spo2: Math.round(c.spo2 ?? 98), grip: 34 + (h % 15), sys: 112 + (h % 12), dia: 72 + (h % 7) };
 }
 
 function identify(uid, { quiet = false } = {}) {
   const changed = S.person?.uid !== uid;
   S.person = personFromUid(uid);
   if (changed) { S.health = null; S.chat = null; }
-  if (S.link?.kind === 'sim') S.link.setProfile(PROFILES.rest());
+  if (S.link?.kind === 'sim') { S.link.setBody(personBody(S.person)); if (changed) seedHistory(uid); }
   if (changed) {
     vibrate(40);
     if (!quiet) toast(`${L('Hola', 'Hi')}, ${S.person.name.split(' ')[0]}.`);
@@ -493,6 +542,16 @@ function onEvent({ type, data }) {
   } else if (type === 'card') {
     if (data && S.screen === 'welcome') enter(data.uid);
     else if (data && ['home', 'live', 'history', 'result'].includes(S.screen)) identify(data.uid);
+  } else if (type === 'ecg') {
+    for (const x of data.samples) S.ecg.push(x);
+    if (S.ecg.length > ECG_MAX) S.ecg.splice(0, S.ecg.length - ECG_MAX);
+    return; // se pinta en el bucle de la onda
+  } else if (type === 'ext') {
+    S.ext = data;
+    if (S.check && STEPS[S.check.step] === 'hr' && !S.check.manual) S.check.ext.push(data);
+  } else if (type === 'ext-status') {
+    S.extStatus = data;
+    return;
   } else if (type === 'watch') {
     S.watch = data;
   } else if (type === 'status') {
@@ -553,6 +612,22 @@ function updateLive() {
     const html = items.map(([n, ok]) => `<span class="${ok ? 'ok' : 'off'}">${n}</span>`).join('');
     if (sens.innerHTML !== html) sens.innerHTML = html;
   }
+  const x = S.ext;
+  if (x && app.querySelector('.xtiles')) {
+    const lvl = (k, l) => app.querySelector(`[data-tile="${k}"]`)?.setAttribute('data-lvl', l == null ? '' : ['ok', 'warn', 'err'][l]);
+    setText('x-temp', fmt(x.temp, 1)); lvl('temp', classify('temp', x.temp).level);
+    setText('x-resp', String(x.rr)); lvl('resp', classify('resp', x.rr).level);
+    setText('x-hrv', x.rmssd != null ? String(x.rmssd) : '—');
+    setText('x-qtc', String(x.qtc)); lvl('qtc', classify('qtc', x.qtc).level);
+    setText('x-bp', `${x.bpEst.sys}/${x.bpEst.dia}`);
+    setText('x-eda', fmt(x.eda, 1)); lvl('eda', x.eda >= 8 ? 1 : 0);
+    setText('x-grip', String(x.grip));
+    setText('x-co2', fmt(x.co2, 1)); lvl('co2', co2Level(x.co2));
+    setText('x-dose', String(x.dose)); lvl('dose', x.dose >= 200 ? 2 : x.dose >= 60 ? 1 : 0);
+    setText('x-rhythm', rhythmText(x.rhythm));
+    app.querySelector('[data-live="x-rhythm"]')?.setAttribute('data-lvl', x.rhythm && x.rhythm !== 'sinus' ? 'warn' : 'ok');
+    setText('x-ecghr', x.ecgHr ? `${x.ecgHr} ${L('lpm', 'bpm')}${x.ectopics ? ` · ${x.ectopics} ${L('extrasístoles', 'ectopics')}` : ''}` : '');
+  }
   if (S.screen === 'check') updateCheck();
 }
 
@@ -587,15 +662,16 @@ function drawWave() {
       g.beginPath(); g.arc(lx, ly, 3.5, 0, Math.PI * 2); g.fill();
     }
   }
+  app.querySelectorAll('canvas.ecg').forEach((cv) => drawEcg(cv, S.ecg, { seconds: cv.dataset.sec ? +cv.dataset.sec : 4 }));
   requestAnimationFrame(drawWave);
 }
 requestAnimationFrame(drawWave);
 
 /* ------------------------------------------------- 4 chequeo guiado -- */
 // Cinco pasos: pulso y SpO₂ (sensor o a mano) · tensión · glucosa · ánimo y sueño · señales de alarma.
-const CHECK_S = 30;
+let CHECK_S = 30;
 const CHECK_MAX_S = 60;
-const CHECK_GOOD = 15;
+let CHECK_GOOD = 15;
 const STEPS = ['hr', 'bp', 'glucose', 'mind', 'flags'];
 const STEP_TITLES = {
   es: { hr: 'Pulso y oxígeno', bp: 'Tensión arterial', glucose: 'Glucosa', mind: 'Ánimo y sueño', flags: 'Señales de alarma' },
@@ -606,7 +682,7 @@ const envKey = () => (ENVIRONMENTS[saved.env] ? saved.env : 'transit');
 
 async function startCheck() {
   if (!S.person) return;
-  S.check = { step: 0, samples: [], start: performance.now(), uid: S.person.uid, values: {}, manual: false, done: false };
+  S.check = { step: 0, samples: [], ext: [], start: performance.now(), uid: S.person.uid, values: {}, manual: false, done: false };
   try { S.check.lock = await navigator.wakeLock?.request('screen'); } catch { /* opcional */ }
   go('check');
   S.check.timer = setInterval(updateCheck, 250);
@@ -668,6 +744,8 @@ function stepHr() {
           <div class="ring__in"><b data-live="cbpm">—</b><small>${L('lpm', 'bpm')}</small></div></div>
         <h3 class="check__msg" data-live="cmsg">${QUALITY_TEXT['no-finger']}</h3>
         <div class="wavebox"><canvas class="wave" aria-hidden="true"></canvas></div>
+        ${S.link?.kind === 'sim' ? `<div class="ecgbox ecgbox--sm"><canvas class="ecg" data-sec="3" aria-hidden="true"></canvas></div>
+        <p class="fine">${L('A la vez: ECG de los asideros, temperatura sin contacto, respiración, HRV, QTc, tensión estimada, EDA y fuerza de agarre.', 'At the same time: handle ECG, contactless temperature, breathing, HRV, QTc, estimated blood pressure, EDA and grip strength.')}</p>` : ''}
         <button class="btn btn--ghost btn--block" data-act="manual">${L('El sensor no funciona: introducir a mano', 'Sensor not working? Enter it manually')}</button>
       </div>
       <form class="manual" ${c.manual ? '' : 'hidden'}>
@@ -697,6 +775,7 @@ function stepBp() {
     <section class="screen check">
       ${topbar()}
       ${stepIntro('bp')}
+      ${S.check.values.ext ? `<p class="note">${L(`Estimación sin manguito (tiempo de tránsito del pulso, experimental): ~${S.check.values.ext.bpEst.sys}/${S.check.values.ext.bpEst.dia} mmHg. Confírmala con el manguito: solo cuenta la medida del manguito.`, `Cuffless estimate (pulse transit time, experimental): ~${S.check.values.ext.bpEst.sys}/${S.check.values.ext.bpEst.dia} mmHg. Confirm it with the cuff: only the cuff reading counts.`)}</p>` : ''}
       <div class="fields2">
         ${numberField('sys', L('Alta (sistólica)', 'Top (systolic)'), 'mmHg', { min: 50, max: 260 })}
         ${numberField('dia', L('Baja (diastólica)', 'Bottom (diastolic)'), 'mmHg', { min: 30, max: 160 })}
@@ -800,10 +879,24 @@ function updateCheck() {
       return;
     }
     Object.assign(c.values, { hr: r.bpm, spo2: r.spo2 ?? undefined, watchBpm: r.watchBpm, skin: r.skin, cabin: { t: r.temperature, h: r.humidity, p: r.pressure } });
+    if (c.ext.length >= 3) c.values.ext = summarizeExt(c.ext);
     vibrate(60);
     toast(`${L('Pulso', 'Heart rate')} ${r.bpm} ${L('lpm', 'bpm')}${r.spo2 ? ` · SpO₂ ${r.spo2} %` : ''}. ${L('Siguiente paso.', 'Next step.')}`);
     nextStep();
   }
+}
+
+// Resumen de los sensores ampliados durante el paso del sensor: medianas, y el último análisis del ritmo
+// (que ya usa los últimos 30 latidos).
+function summarizeExt(list) {
+  const med = (k, f = (x) => x[k]) => { const v = list.map(f).filter((x) => x != null).sort((a, b) => a - b); return v.length ? v[v.length >> 1] : null; };
+  const last = list.at(-1);
+  return {
+    temp: med('temp'), resp: med('rr'), rmssd: med('rmssd'), qtc: med('qtc'), eda: med('eda'),
+    grip: Math.max(...list.map((x) => x.grip)), co2: med('co2'), dose: med('dose'),
+    bpEst: { sys: med(null, (x) => x.bpEst.sys), dia: med(null, (x) => x.bpEst.dia) },
+    rhythm: last.rhythm, ectopics: last.ectopics, ecgHr: last.ecgHr,
+  };
 }
 
 function endCheck() {
@@ -831,6 +924,20 @@ function finishCheck() {
     results.push({ ...r, display: `${v.hr} ${L('lpm', 'bpm')}${v.manualHr ? ` (${L('manual', 'manual')})` : ''}` });
   }
   if (v.spo2 != null) results.push({ ...classify('spo2', v.spo2), display: `${v.spo2} %` });
+  const x = v.ext;
+  if (x) {
+    if (x.rhythm) results.push({ ...classify('rhythm', x.rhythm), display: `${rhythmText(x.rhythm)}${x.ectopics ? ` · ${x.ectopics}` : ''}` });
+    if (x.qtc != null) results.push({ ...classify('qtc', x.qtc), display: `${x.qtc} ms` });
+    if (x.temp != null) results.push({ ...classify('temp', x.temp), display: `${fmt(x.temp, 1)} °C` });
+    if (x.resp != null) results.push({ ...classify('resp', x.resp), display: `${x.resp} rpm` });
+    // HRV: no hay umbral universal; solo se compara con la línea base de la persona
+    const band = baselineBand(list.map((h) => h.rmssd));
+    if (x.rmssd != null && band && x.rmssd < band.lo) {
+      results.push({ id: 'hrv', name: L('Variabilidad cardiaca (HRV)', 'Heart rate variability (HRV)'), level: 1, dir: 'low', value: x.rmssd,
+        reason: L(`RMSSD de ${x.rmssd} ms, muy por debajo de tu normal (${Math.round(band.med)} ms): señal de cansancio o estrés acumulado.`, `RMSSD of ${x.rmssd} ms, well below your normal (${Math.round(band.med)} ms): a sign of accumulated fatigue or stress.`),
+        display: `${x.rmssd} ms` });
+    }
+  }
   if (v.bp) results.push({ ...classify('bp', v.bp), display: `${v.bp.sys}/${v.bp.dia} mmHg` });
   if (v.glucose != null) results.push({ ...classify('glucose', v.glucose), display: `${v.glucose} mg/dL${v.fasting ? L(' en ayunas', ' fasting') : ''}` });
   if (v.mind) results.push({ ...classify('mind', v.mind), display: `PHQ-2 ${v.mind.phq2}/6 · ${fmt(v.mind.sleep, 1)} h · ${L('estrés', 'stress')} ${v.mind.stress}/10` });
@@ -840,10 +947,11 @@ function finishCheck() {
   const entry = {
     at: Date.now(), env: envKey(), bpm: v.hr ?? null, spo2: v.spo2 ?? null, bp: v.bp || null, glucose: v.glucose ?? null,
     mind: v.mind || null, flags, selfHarm: !!v.selfHarm, overall, status: ['normal', 'watch', 'alert'][overall],
+    ...(x ? { temp: x.temp, resp: x.resp, rmssd: x.rmssd, qtc: x.qtc, rhythm: x.rhythm, eda: x.eda, grip: x.grip } : {}),
     sim: S.link?.kind === 'sim' || !!S.status?.test,
   };
   if (results.length) { saved.history[c.uid] = [...list, entry].slice(-200); store.save(saved); }
-  S.result = { results, plan, flags, selfHarm: !!v.selfHarm, overall, entry, explanation: null };
+  S.result = { results, plan, flags, selfHarm: !!v.selfHarm, overall, entry, ext: x || null, prev: list, explanation: null };
   vibrate(overall === 0 ? 60 : [80, 80, 80]);
   go('result');
 }
@@ -872,6 +980,8 @@ function result() {
       <ul class="results">${results.map((r) => `
         <li class="lvl-${LEVEL_CLS[r.level]}"><span class="dot dot--${LEVEL_CLS[r.level]}"></span>
           <div><b>${esc(r.name)}</b><small>${esc(r.reason)}</small></div><em>${esc(r.display)}</em></li>`).join('') || `<li class="empty">${L('No se ha medido nada.', 'Nothing was measured.')}</li>`}</ul>
+      ${baselineSection(S.result)}
+      ${extSection(S.result.ext)}
 
 
       ${overall > 0 ? `<div class="plan">
@@ -900,6 +1010,43 @@ function result() {
   return node;
 }
 
+// «Tú contra ti»: el valor de hoy frente a la banda de tu normal (mediana ± 2,5 desviaciones robustas).
+function baselineSection(R) {
+  const prev = (R.prev || []).slice(-20);
+  const labels = { normal: L('tu normal', 'your normal'), today: L('hoy', 'today') };
+  const charts = [
+    [L('Pulso en reposo', 'Resting heart rate'), prev.map((h) => h.bpm), R.entry.bpm, L('lpm', 'bpm'), 0],
+    ['HRV · RMSSD', prev.map((h) => h.rmssd), R.entry.rmssd, 'ms', 0],
+    [L('Temperatura', 'Temperature'), prev.map((h) => h.temp), R.entry.temp, '°C', 1],
+  ].filter(([, v, today]) => today != null && baselineBand(v));
+  if (!charts.length) return '';
+  return `<h3 class="section-t">${L('Tú frente a tu normal', 'You versus your normal')}</h3>
+    <p class="fine">${L('Los monitores habituales usan los mismos umbrales para todo el mundo. XPaze además te compara contigo: la banda es tu normal, calculada de tus chequeos anteriores.', 'Typical monitors use the same thresholds for everyone. XPaze also compares you with yourself: the band is your normal, computed from your previous check-ups.')}</p>
+    <div class="blcharts">${charts.map(([t, v, today, u, d]) => {
+      const b = baselineBand(v);
+      const out = today < b.lo || today > b.hi;
+      return `<figure class="blc ${out ? 'blc--out' : ''}"><figcaption><b>${t}</b><span>${out ? L('fuera de tu normal', 'outside your normal') : L('dentro de tu normal', 'within your normal')}</span></figcaption>
+        ${baselineChart(v, today, { labels, unit: u, fmt: (n) => fmt(n, d) })}
+        <small>${L('Tu normal', 'Your normal')}: ${fmt(b.lo, d)}–${fmt(b.hi, d)} ${u} · ${L('hoy', 'today')}: <b>${fmt(today, d)} ${u}</b> · ${b.n} ${L('chequeos', 'check-ups')}</small></figure>`;
+    }).join('')}</div>`;
+}
+
+// Lecturas de la estación v2 que no deciden el semáforo (información y contexto).
+function extSection(x) {
+  if (!x) return '';
+  const co2 = co2Level(x.co2);
+  const rows = [
+    [L('Tensión estimada sin manguito (PTT)', 'Cuffless BP estimate (PTT)'), `~${x.bpEst.sys}/${x.bpEst.dia} mmHg`, L('Experimental: no cuenta para el semáforo.', 'Experimental: not used for the traffic light.'), null],
+    [L('Actividad electrodérmica (estrés)', 'Electrodermal activity (stress)'), `${fmt(x.eda, 1)} µS`, x.eda >= 8 ? L('Alta: el cuerpo está en modo alerta.', 'High: the body is in alert mode.') : L('En calma.', 'Calm.'), x.eda >= 8 ? 1 : 0],
+    [L('Fuerza de agarre', 'Grip strength'), `${x.grip} kg`, L('Vigila la pérdida de músculo en microgravedad (riesgo HRP).', 'Tracks muscle loss in microgravity (HRP risk).'), null],
+    [L('CO₂ de cabina', 'Cabin CO₂'), `${fmt(x.co2, 1)} mmHg`, [L('Dentro del límite de NASA-STD-3001 (≤ 3 mmHg).', 'Within the NASA-STD-3001 limit (≤ 3 mmHg).'), L('Cerca del límite: puede dar dolor de cabeza.', 'Close to the limit: it can cause headaches.'), L('Por encima del límite de NASA-STD-3001 [V2 6004]: avisa a la tripulación y revisa el depurador.', 'Above the NASA-STD-3001 limit [V2 6004]: alert the crew and check the scrubber.')][co2], co2],
+    [L('Dosímetro', 'Dosimeter'), `${x.dose} µSv/h`, x.dose >= 200 ? L('Muy alto: ve al refugio de radiación.', 'Very high: go to the radiation shelter.') : x.dose >= 60 ? L('Alto: el nivel de un viaje a Marte.', 'High: the level of a trip to Mars.') : L('Normal para órbita baja.', 'Normal for low Earth orbit.'), x.dose >= 200 ? 2 : x.dose >= 60 ? 1 : 0],
+  ];
+  return `<h3 class="section-t">${L('Más datos de la estación v2', 'More station v2 data')} <span class="pill-sim">${L('simulados', 'simulated')}</span></h3>
+    <ul class="results results--info">${rows.map(([n, val, why, l]) => `<li class="${l == null ? '' : `lvl-${LEVEL_CLS[l]}`}"><span class="dot dot--${l == null ? 'off' : LEVEL_CLS[l]}"></span><div><b>${n}</b><small>${why}</small></div><em>${val}</em></li>`).join('')}</ul>
+    <p class="fine">${L('El aire y la radiación son riesgos del entorno: se muestran, pero no cambian el color de tu chequeo.', 'Air and radiation are environmental risks: they are shown, but they do not change the colour of your check-up.')}</p>`;
+}
+
 async function explain(node) {
   const R = S.result;
   const out = node.querySelector('[data-live="ai"]');
@@ -910,6 +1057,7 @@ async function explain(node) {
       person: S.person?.name, environment: `${env.name} (${env.gravity}; ${L('retardo con Tierra', 'delay to Earth')} ${env.delay})${spaceNow()?.level ? `. Clima espacial: ${spaceNow().headline}` : ''}`,
       overall: R.overall, simulated: R.entry.sim,
       results: R.results.map((r) => ({ name: r.name, display: r.display, level: r.level, reason: r.reason })),
+      station: R.ext ? { eda: R.ext.eda, grip: R.ext.grip, co2mmHg: R.ext.co2, doseUSvH: R.ext.dose, cufflessBP: R.ext.bpEst } : undefined,
       plan: { now: R.plan.now, crew: R.plan.crew, surgeon: R.plan.surgeon, evac: R.plan.evac },
     }, lang: lang() }, (t) => { out.textContent = t; });
   } catch {
@@ -1122,6 +1270,7 @@ function buildContext() {
       h.mind && `sueño ${h.mind.sleep} h, PHQ-2 ${h.mind.phq2}, estrés ${h.mind.stress}`, `→ ${COLOR[h.overall ?? 0]}`,
     ].filter(Boolean).join(', ')),
     live, watch, samsung: healthContext(),
+    station: S.ext ? { 'ECG': `${S.ext.rhythm || '—'}${S.ext.ectopics ? `, ${S.ext.ectopics} extrasístoles` : ''}`, 'Pulso ECG': S.ext.ecgHr, 'HRV RMSSD (ms)': S.ext.rmssd, 'QTc (ms)': S.ext.qtc, 'Temperatura corporal': S.ext.temp, 'Respiración (rpm)': S.ext.rr, 'EDA (µS, estrés)': S.ext.eda, 'Agarre (kg)': S.ext.grip, 'CO₂ cabina (mmHg)': S.ext.co2, 'Radiación (µSv/h)': S.ext.dose, 'Situación simulada': S.link?.scenario } : null,
     insights: buildInsights(),
     about: saved.about[p?.uid] || '',
     facts: saved.facts[p?.uid] || [],
@@ -1320,7 +1469,9 @@ function seedHistory(uid) {
     const mind = { phq2: late ? 2 : Math.round(rnd()), sleep: late ? 5.5 : 6.5 + Math.round(rnd() * 2) / 2, stress: late ? 6 : 3 + Math.round(rnd() * 2) };
     const levels = [classify('hr', bpm).level, classify('bp', { sys, dia }).level, classify('mind', mind).level];
     const overall = Math.max(...levels);
-    return { at: Date.now() - (12 - i) * day, env: envKey(), bpm, spo2: 97 + Math.round(rnd() * 2), bp: { sys, dia }, glucose: Math.round(88 + rnd() * 25), mind, flags: [], overall, status: ['normal', 'watch', 'alert'][overall], sim: true };
+    const b = personBody(personFromUid(uid));
+    const ext = { rmssd: Math.round(b.rmssd * 0.9 * (late ? 0.85 : 1) * (1 + (rnd() - 0.5) * 0.3)), temp: Math.round((b.temp + (rnd() - 0.5) * 0.3) * 10) / 10, resp: 13 + Math.round(rnd() * 3), qtc: 405 + Math.round(rnd() * 15), rhythm: 'sinus', eda: Math.round((2.5 + rnd() * 1.5 + (late ? 1.5 : 0)) * 10) / 10, grip: b.grip + Math.round((rnd() - 0.5) * 3) };
+    return { at: Date.now() - (12 - i) * day, env: envKey(), bpm, spo2: 97 + Math.round(rnd() * 2), bp: { sys, dia }, glucose: Math.round(88 + rnd() * 25), mind, flags: [], overall, status: ['normal', 'watch', 'alert'][overall], sim: true, ...ext };
   });
   store.save(saved);
 }
@@ -1334,6 +1485,9 @@ function history() {
     [L('Pulso en reposo (lpm)', 'Resting heart rate (bpm)'), asc.map((h) => h.bpm), p?.crew?.hr],
     [L('Tensión sistólica (mmHg)', 'Systolic blood pressure (mmHg)'), asc.map((h) => h.bp?.sys ?? null), 120],
     [L('Horas de sueño', 'Hours of sleep'), asc.map((h) => h.mind?.sleep ?? null), 7],
+    ['HRV · RMSSD (ms)', asc.map((h) => h.rmssd ?? null), null],
+    [L('Temperatura (°C)', 'Temperature (°C)'), asc.map((h) => h.temp ?? null), null],
+    [L('Fuerza de agarre (kg)', 'Grip strength (kg)'), asc.map((h) => h.grip ?? null), null],
   ].filter(([, v]) => v.filter((x) => x != null).length >= 2);
   const node = el(`
     <section class="screen hist">
@@ -1374,6 +1528,90 @@ function spark(raw, ref) {
   return `<svg class="spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="${L('Tendencia', 'Trend')}">
     ${ref ? `<line x1="${pad}" x2="${W - pad}" y1="${y(ref)}" y2="${y(ref)}" class="spark__ref"/>` : ''}
     <path d="${d}" class="spark__line"/>${pts.map((p) => `<circle cx="${p[0]}" cy="${p[1]}" r="3" class="spark__dot"/>`).join('')}</svg>`;
+}
+
+
+/* ------------------------------------------------------ modo demo (60 s) -- */
+// Reproduce la historia del día 58 sin tocar nada: estación simulada → ECG y sensores → chequeo
+// acelerado → «tú frente a tu normal» → explicación de la IA → Paze. Sirve también de plan B en el pitch.
+let demoRun = 0;
+const demoWait = (ms, id) => new Promise((res, rej) => setTimeout(() => (id === demoRun ? res() : rej(new Error('demo-stop'))), ms));
+async function demoUntil(fn, id, max = 30000) {
+  const t0 = performance.now();
+  while (!fn()) { await demoWait(200, id); if (performance.now() - t0 > max) throw new Error('demo-timeout'); }
+}
+function demoCaption(text, n, total = 7) {
+  let box = document.querySelector('.demo-cap');
+  if (!box) {
+    box = el(`<div class="demo-cap" role="status" aria-live="polite"><div class="demo-cap__bar"><i></i></div><p></p><button class="demo-cap__x" type="button">${L('Salir de la demo', 'Exit demo')}</button></div>`);
+    box.querySelector('.demo-cap__x').onclick = stopDemo;
+    document.body.append(box);
+  }
+  box.querySelector('p').textContent = text;
+  box.querySelector('.demo-cap__bar i').style.width = `${Math.round((n / total) * 100)}%`;
+}
+function stopDemo() {
+  demoRun += 1;
+  document.querySelector('.demo-cap')?.remove();
+  S.demo = false; CHECK_S = 30; CHECK_GOOD = 15;
+  if (S.check) endCheck();
+  S.link?.setScenario?.('rest');
+  go(S.person ? 'home' : 'welcome');
+}
+const demoScroll = (sel) => app.querySelector(sel)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+async function runDemo() {
+  const id = ++demoRun;
+  S.demo = true; CHECK_S = 7; CHECK_GOOD = 5;
+  const vega = PEOPLE[0].uid;
+  try {
+    if (!S.link || S.link.kind !== 'sim') { const link = new SimLink(); attach(link); await link.connect(); }
+    delete saved.history[vega]; store.save(saved); // historia limpia: 12 días de historial de ejemplo
+    S.person = null;
+    identify(vega, { quiet: true });
+    S.link.setScenario('day58', { instant: true });
+    demoCaption(L('Día 58 rumbo a Marte. Vega, la comandante, pasa su tarjeta por la XPaze Station.', 'Day 58 on the way to Mars. Vega, the commander, taps her card on the XPaze Station.'), 1);
+    go('live');
+    await demoWait(5500, id);
+    demoScroll('.xtiles');
+    demoCaption(L('Al agarrar los asideros, todo a la vez: ECG, temperatura, respiración, HRV, QTc, estrés y fuerza.', 'Holding the handles measures everything at once: ECG, temperature, breathing, HRV, QTc, stress and grip.'), 2);
+    await demoWait(5500, id);
+    demoCaption(L('Chequeo guiado. En la vida real son 2 minutos; aquí va acelerado.', 'Guided check-up. In real life it takes 2 minutes; here it is sped up.'), 3);
+    startCheck();
+    await demoWait(1500, id); demoScroll('.ring');
+    await demoUntil(() => !S.check || S.check.step >= 1, id);
+    const fill = async (values) => { Object.assign(S.check.values, values); await demoWait(1300, id); nextStep(); };
+    await demoWait(1200, id); await fill({ bp: { sys: 124, dia: 79 } });
+    await fill({ glucose: 97, fasting: false });
+    await fill({ mind: { phq2: 2, sleep: 5, stress: 7 } });
+    await demoWait(900, id); S.check.values.flags = []; nextStep();
+    await demoWait(800, id);
+    demoCaption(L('Su pulso está dentro del rango general de cualquier monitor… pero muy lejos de SU normal. XPaze lo ve.', 'Her heart rate is within the general range any monitor uses… but far from HER normal. XPaze sees it.'), 4);
+    demoScroll('.blcharts');
+    await demoWait(8000, id);
+    demoCaption(L('La IA explica el resultado en lenguaje llano. El color lo deciden reglas fijas; la IA no puede cambiarlo.', 'The AI explains the result in plain language. Fixed rules decide the colour; the AI cannot change it.'), 5);
+    demoScroll('.ai-box');
+    await demoWait(8000, id);
+    demoCaption(L('Y Paze, la psicóloga de a bordo, ya conoce estos datos.', 'And Paze, the on-board psychologist, already knows this data.'), 6);
+    saved.chatMode = 'texto';
+    S.chat = null;
+    openChat();
+    await demoWait(900, id);
+    const ta = app.querySelector('.compose textarea');
+    if (ta) {
+      ta.value = L('Llevo unos días durmiendo fatal y estoy irritable con la tripulación.', 'I have been sleeping terribly for a few days and I am irritable with the crew.');
+      app.querySelector('[data-act="send"]')?.click();
+    }
+    await demoUntil(() => { const m = [...app.querySelectorAll('.msg--ai')]; return m.length >= 2 && !m.at(-1).classList.contains('is-typing'); }, id, 40000).catch(() => {});
+    await demoWait(5000, id);
+    demoCaption(L('XPaze: te compara contigo, aunque la Tierra esté a 11 minutos.', 'XPaze: it compares you with yourself, even when Earth is 11 minutes away.'), 7);
+    await demoWait(6000, id);
+    document.querySelector('.demo-cap')?.remove();
+  } catch (e) {
+    if (e.message !== 'demo-stop') { console.warn('[demo]', e); document.querySelector('.demo-cap')?.remove(); }
+  } finally {
+    if (id === demoRun) { S.demo = false; CHECK_S = 30; CHECK_GOOD = 15; }
+  }
 }
 
 /* ------------------------------------------------------------ varios -- */
