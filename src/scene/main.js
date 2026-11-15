@@ -172,7 +172,7 @@ station.ready.then(() => {
   return astro.ready;
 }).then(() => {
   // el astronauta se coloca de modo que sus palmas descansen sobre los asideros
-  ASTRO_TO.set(0, grip.top - 0.22 - astro.palms.y, grip.R.z - astro.palms.z - 0.15);
+  ASTRO_TO.set(0, grip.top - astro.palms.y, grip.R.z - astro.palms.z);
   document.body.classList.add('is-ready');
 }).catch(() => document.body.classList.add('no-webgl'));
 

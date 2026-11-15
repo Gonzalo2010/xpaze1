@@ -55,6 +55,39 @@ function bendArms(geometry, angle = 0.385, lift = 0.0) {
   geometry.computeBoundingSphere();
 }
 
+// Cierra los dedos del guante alrededor del asidero. Tras girar el brazo, el antebrazo apunta en la
+// dirección f (en el plano horizontal); «s» es la distancia a lo largo de f y los nudillos están en
+// s ≈ 0,43 m. Los vértices de más allá se giran hacia abajo y hacia atrás, cada vez más (un arco).
+const KNUCKLE = { s: 0.432, y: 1.105 };
+function curlFingers(geometry, curl = 0.85) {
+  const P = geometry.attributes.position, N = geometry.attributes.normal;
+  for (let i = 0; i < P.count; i++) {
+    const x = P.getX(i), y = P.getY(i), z = P.getZ(i);
+    if (z < 0.3 || y > 1.3 || y < 0.9) continue;
+    const side = x >= 0 ? 1 : -1;
+    const fx = -side * 0.375, fz = 0.927;               // dirección del antebrazo
+    const sA = x * fx + z * fz, lat = x * fz - z * fx;  // a lo largo y a lo ancho
+    if (sA <= KNUCKLE.s || Math.abs(lat) < 0.15) continue;
+    const a = curl * smooth(0, 0.09, sA - KNUCKLE.s);
+    const c = Math.cos(a), sn = Math.sin(a);
+    const ds = sA - KNUCKLE.s, dy = y - KNUCKLE.y;
+    const s2 = KNUCKLE.s + ds * c + dy * sn, y2 = KNUCKLE.y - ds * sn + dy * c;
+    P.setXYZ(i, s2 * fx + lat * fz, y2, s2 * fz - lat * fx);
+    if (N) {
+      const nx = N.getX(i), ny = N.getY(i), nz = N.getZ(i);
+      const ns = nx * fx + nz * fz, nl = nx * fz - nz * fx;
+      const ns2 = ns * c + ny * sn, ny2 = -ns * sn + ny * c;
+      N.setXYZ(i, ns2 * fx + nl * fz, ny2, ns2 * fz - nl * fx);
+    }
+  }
+  P.needsUpdate = true;
+  if (N) N.needsUpdate = true;
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+}
+// punto del puño por donde pasa el asidero (metros, modelo): justo delante de los nudillos
+export const GRIP_POINT = { x: 0.084, y: 1.092, z: 0.522 };
+
 export function makeAstronaut(renderer) {
   const root = new THREE.Group();   // lo mueve la escena; mira a −Z
   const model = new THREE.Group();  // el traje, girado para mirar a −Z y a escala de la escena
@@ -65,7 +98,7 @@ export function makeAstronaut(renderer) {
   const loader = new GLTFLoader();
 
   // dónde quedan las palmas (en el espacio de «root», unidades de escena)
-  const palms = { y: 1.03 * M_TO_UNITS, z: -0.5 * M_TO_UNITS, x: 0.077 * M_TO_UNITS };
+  const palms = { y: GRIP_POINT.y * M_TO_UNITS, z: -GRIP_POINT.z * M_TO_UNITS, x: GRIP_POINT.x * M_TO_UNITS };
 
   const ready = new Promise((resolve, reject) => {
     loader.load('/models/z2-spacesuit.glb', (gltf) => {
@@ -80,6 +113,7 @@ export function makeAstronaut(renderer) {
         const o = new THREE.Mesh(geo, src.material);
         model.add(o);
         bendArms(o.geometry);
+        curlFingers(o.geometry);
         // el mapa de brillos del fichero produce motas de color con luces intensas: fuera
         o.material.specularColorMap = null; o.material.specularIntensityMap = null;
         o.material.specularIntensity = 0.35; o.material.roughness = 0.72;
@@ -112,15 +146,6 @@ export function makeAstronaut(renderer) {
         o.castShadow = true; o.receiveShadow = true;
         o.material.envMapIntensity = 1.15;
         for (const k of ['map', 'normalMap', 'metalnessMap', 'roughnessMap']) if (o.material[k]) o.material[k].anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
-        // medir las manos ya dobladas: los vértices más adelantados
-        const P = o.geometry.attributes.position;
-        let n = 0, sx = 0, sz = 0, ymin = 9;
-        for (let i = 0; i < P.count; i++) {
-          const z = P.getZ(i);
-          if (z < 0.44) continue;
-          n++; sx += Math.abs(P.getX(i)); sz += z; ymin = Math.min(ymin, P.getY(i));
-        }
-        if (n) { palms.x = (sx / n) * M_TO_UNITS; palms.z = -(sz / n) * M_TO_UNITS; palms.y = ymin * M_TO_UNITS; }
       }
       resolve();
     }, undefined, reject);
