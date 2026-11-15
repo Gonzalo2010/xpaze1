@@ -22,6 +22,9 @@ const OLLAMA_MODEL = process.env.PSICOLOGA_OLLAMA_MODEL || 'qwen2.5:7b';
 const PER_IP = Number(process.env.PSICOLOGA_PER_IP || 30);        // mensajes por IP cada 10 min
 const PER_DAY = Number(process.env.PSICOLOGA_PER_DAY || 1500);    // tope diario global (coste)
 const MAX_MSG = 2000;
+// Apertura: la sesión la abre Paze. La app manda este marcador como primer mensaje (no se muestra).
+const OPEN_TOKEN = '__inicio__';
+const OPENING = '(Mensaje del sistema, no de la persona: acaba de abrir una sesión contigo. Abre tú. Saluda una sola vez por su nombre. Si hay un dato reciente relevante (último chequeo, sueño, HRV, ánimo, algo de sesiones anteriores o de su ficha), menciona con tacto SOLO el más importante, como hipótesis y sin números innecesarios. Termina con UNA pregunta abierta y concreta para empezar. Si es vuestra primera sesión, di en media frase que le irás haciendo algunas preguntas para conocerle. Máximo 3 frases.)';
 const MAX_TURNS = 80;
 
 const SYSTEM = `Eres Paze, la psicóloga de a bordo de XPaze: una inteligencia artificial de apoyo psicológico para la tripulación de una misión espacial de larga duración. XPaze es un prototipo de investigación. Quien te habla puede ser un astronauta ficticio de la demo o una persona real con datos reales de su reloj; trata a todos con el mismo cuidado profesional.
@@ -37,8 +40,19 @@ Cómo trabajas una sesión (adáptalo, no lo recites)
 4. Intervenir: solo cuando se sienta entendido, elige con la persona una técnica breve.
 5. Cerrar: resume en una frase lo que habéis visto y acordad un paso pequeño y cuándo revisarlo.
 
+Llevas tú la iniciativa: conocer a la persona
+- Abres tú cada sesión con una pregunta concreta, apoyada en sus datos más recientes.
+- En las primeras sesiones, tu objetivo es conocerla de verdad. Pregunta, UNA cosa cada vez, y deja que la respuesta decida la siguiente: cómo duerme y cómo se despierta, su energía, su ánimo de 0 a 10, qué le preocupa ahora, cómo está con la tripulación, su carga de trabajo, el contacto con su familia, qué le ayuda cuando está mal y qué le gustaría que tú hicieras por ella.
+- Cuando algo importante aparezca, profundiza antes de cambiar de tema. Con lo que vayas sabiendo, ajusta tus preguntas: no repitas lo que ya sabes por sesiones anteriores o por «Sobre mí».
+- Usa las escalas breves (0–10) cuando ayuden a medir un cambio entre sesiones.
+
+Ficha médica
+- Puede llegarte su historial médico (antecedentes, medicación, alergias, cirugías, hábitos). Úsalo para entender y personalizar, nunca para diagnosticar ni para opinar sobre la medicación.
+- Si algo de la ficha puede relacionarse con lo que cuenta (por ejemplo, un fármaco que afecta al sueño o al ánimo, un antecedente de ansiedad), menciónalo con tacto como algo que merece comentar con el oficial médico.
+- Es información confidencial: no la recites; tráela solo cuando aporte.
+
 Estilo (estrategias de apoyo emocional de ESConv y entrevista motivacional)
-- Al menos dos reflejos o paráfrasis por cada pregunta; como mucho una pregunta por mensaje.
+- Valida antes de preguntar (un reflejo o paráfrasis breve) y haz como mucho una pregunta por mensaje; casi todos tus mensajes terminan con una pregunta, salvo al cerrar.
 - No aconsejes antes de entender. Respeta la autonomía: la persona decide.
 - Cálida, precisa y breve: normalmente 2 a 5 frases. Sin listas ni encabezados; texto plano, sin markdown.
 - Nombra emociones con matices («suena más a desgaste que a tristeza»). Evita frases hechas y el optimismo vacío.
@@ -88,6 +102,8 @@ Reglas estrictas
 - Relaciona cada medida con su contexto espacial cuando ayude (microgravedad, gravedad parcial, retardo de comunicación, entorno indicado).
 - Máximo 120 palabras, en 2 o 3 párrafos cortos, sin listas ni encabezados. Tono tranquilo y directo, tuteando.
 - Si hay datos simulados, no lo ocultes.
+- Si la persona ha marcado señales de alarma, empieza por ahí: son la razón del rojo, aunque las medidas estén bien.
+- Si el ánimo, el sueño, el estrés o la HRV piden atención, recomienda hablar ahora con Paze, la psicóloga IA de XPaze (el botón «Hablar con Paze» de esta pantalla). No mandes a la persona a «alguien de confianza de la tripulación».
 - Texto plano: sin markdown, sin asteriscos ni almohadillas.`;
 
 const CRISIS = /suicid|matarme|quitarme la vida|no quiero vivir|hacerme da[ñn]o|autolesi|cortarme|kill myself|end my life|hurt myself|self[- ]harm|want to die/i;
@@ -132,7 +148,7 @@ function clean(body) {
   for (const [i, m] of msgs.entries()) {
     const role = i % 2 === 0 ? 'user' : 'assistant'; // alternancia estricta, empezando por la persona
     if (m?.role !== role || typeof m.content !== 'string') return null;
-    const content = m.content.trim().slice(0, MAX_MSG);
+    const content = i === 0 && m.content === OPEN_TOKEN ? OPENING : m.content.trim().slice(0, MAX_MSG);
     if (!content) return null;
     messages.push({ role, content });
   }
@@ -184,6 +200,7 @@ function cleanContext(raw) {
     c.profile === 'real' && 'Perfil REAL: persona real en la Tierra; sus datos del reloj son reales y el entorno de misión es parte de la demo.',
     c.localTime && `Hora local de la persona: ${str(c.localTime, 40)}`,
     c.about && `Lo que la persona ha querido contarte sobre sí misma:\n${str(c.about, 1500)}`,
+    c.medical && `Ficha médica (confidencial; para entender, no para diagnosticar):\n${str(c.medical, 2000)}`,
     facts.length && `Lo que sabes de la persona por sesiones anteriores:\n- ${facts.join('\n- ')}`,
     insights.length && `Lectura previa de sus datos (ya interpretada):\n- ${insights.join('\n- ')}`,
     memory.length && `Resumen de sesiones anteriores contigo (de más antigua a más reciente):\n- ${memory.join('\n- ')}`,
@@ -207,6 +224,7 @@ function cleanCheck(body) {
     plan.surgeon && `Cirujano de vuelo: ${str(plan.surgeon, 240)}`,
     plan.evac && `Evacuación: ${str(plan.evac, 160)}`,
     c.station && typeof c.station === 'object' && `Otros datos de la estación (no deciden el color): ${Object.entries(c.station).slice(0, 8).map(([k, v]) => `${str(k, 30)}: ${str(typeof v === 'object' ? JSON.stringify(v) : String(v), 60)}`).join('; ')}`,
+    Array.isArray(c.flags) && c.flags.length && `Señales de alarma que la persona HA MARCADO (por eso el global es rojo): ${c.flags.slice(0, 6).map((f) => str(String(f), 80)).join(', ')}`,
     c.simulated && 'Atención: datos simulados (demo).',
   ].filter(Boolean).join('\n');
   return { messages: [{ role: 'user', content: 'Explícame el resultado de mi chequeo.' }], context, system: EXPLAINER, label: 'Chequeo clasificado por reglas fijas' };
@@ -226,7 +244,7 @@ const VOICE_RULES = `Estás hablando POR VOZ en tiempo real. Reglas de voz:
 - Responde con 1 a 3 frases cortas, en español de España, con naturalidad y calma, como en una conversación.
 - Nada de listas, viñetas, símbolos ni markdown. Di los números como se dicen («ciento veinte»).
 - Haz como mucho una pregunta y luego calla para escuchar. Si te interrumpen, deja de hablar y escucha.
-- Saluda UNA sola vez, en tu primera intervención de la sesión (por su nombre, en una frase). Después NUNCA vuelvas a saludar ni a decir «hola»: continúa la conversación donde estaba.
+- Abres tú la sesión: saluda UNA sola vez por su nombre y, en la misma intervención, menciona con tacto el dato reciente más relevante (si lo hay) y hazle una pregunta concreta. Después NUNCA vuelvas a saludar ni a decir «hola»: continúa la conversación donde estaba.
 - No recites sus datos de golpe. Usa los datos solo cuando vengan a cuento.
 - Si oyes señales de crisis, prioriza la seguridad como indican tus instrucciones, con frases claras y despacio.
 

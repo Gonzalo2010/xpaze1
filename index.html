@@ -29,7 +29,6 @@
 <body>
   <a class="skip" href="#contenido" data-i18n="h.skip-to-content">Skip to content</a>
 
-  <canvas id="station" aria-hidden="true"></canvas>
 
   <header class="topbar">
     <a class="brand" href="#top" aria-label="XPaze, home" data-i18n-aria-label="a.xpaze-home"><img src="/logo-mark-dark.png" alt="" width="28" height="23" />XPaze</a>
@@ -38,8 +37,7 @@
         <li><a href="#problema" data-i18n="h.problem">Problem</a></li>
         <li><a href="#sistema" data-i18n="h.system">System</a></li>
         <li><a href="#mente" data-i18n="h.mind">Mind</a></li>
-        <li><a href="#dentro" data-i18n="h.inside">Inside</a></li>
-        <li><a href="#datos" data-i18n="h.nasa-data">NASA data</a></li>
+                <li><a href="#datos" data-i18n="h.nasa-data">NASA data</a></li>
         <li><a href="#prototipo" data-i18n="h.prototype">Prototype</a></li>
       </ol>
     </nav>
@@ -59,9 +57,8 @@
       <li><a href="#normal" data-ch="normal"><b>04</b><span data-i18n="h.your-normal">Your normal</span></a></li>
       <li><a href="#mente" data-ch="mente"><b>05</b><span data-i18n="h.the-mind">The mind</span></a></li>
       <li><a href="#autonomia" data-ch="autonomia"><b>06</b><span data-i18n="h.autonomy">Autonomy</span></a></li>
-      <li><a href="#dentro" data-ch="dentro"><b>07</b><span data-i18n="h.inside">Inside</span></a></li>
-      <li><a href="#datos" data-ch="datos"><b>08</b><span data-i18n="h.nasa-data">NASA data</span></a></li>
-      <li><a href="#prototipo" data-ch="prototipo"><b>09</b><span data-i18n="h.prototype">Prototype</span></a></li>
+      <li><a href="#datos" data-ch="datos"><b>07</b><span data-i18n="h.nasa-data">NASA data</span></a></li>
+      <li><a href="#prototipo" data-ch="prototipo"><b>08</b><span data-i18n="h.prototype">Prototype</span></a></li>
     </ol>
   </aside>
 
@@ -86,12 +83,16 @@
           <a class="btn btn--line" href="/app/" data-i18n="h.try-xpaze">Try XPaze</a>
         </div>
       </div>
-      <img class="hero__fallback" src="/img/station-34.webp" alt="The XPaze station: a box with two handles and a phone resting on it" data-i18n-alt="a.the-xpaze-station-a" width="480" height="480" />
-      <div class="hero__readout" aria-label="Example reading" data-i18n-aria-label="a.example-reading">
-        <div><small data-i18n="h.heart-rate">Heart rate</small><b data-count="62">62</b><em data-i18n="h.bpm">bpm</em></div>
-        <div><small data-i18n="h.oxygen">Oxygen</small><b>98</b><em>%</em></div>
-        <div><small>Temp.</small><b data-i18n="h.36-6">36.6</b><em>°C</em></div>
-        <div class="ok"><small data-i18n="h.status">Status</small><b>Normal</b></div>
+      <div class="hero__monitor" aria-label="Live ECG from the simulated XPaze station v2" data-i18n-aria-label="a.hero-monitor">
+        <div class="hm__head"><span class="hm__dot" aria-hidden="true"></span><span data-i18n="h.hm-title">Live · XPaze station v2</span><span class="hm__sim" data-i18n="h.hm-sim">simulated</span></div>
+        <canvas class="hm__ecg" aria-hidden="true"></canvas>
+        <div class="hm__vals">
+          <div><small data-i18n="h.heart-rate">Heart rate</small><b data-hm="hr">62</b><em data-i18n="h.bpm">bpm</em></div>
+          <div><small>HRV</small><b data-hm="hrv">52</b><em>ms</em></div>
+          <div><small data-i18n="h.hm-temp">Temperature</small><b data-hm="temp">36.6</b><em>°C</em></div>
+          <div><small data-i18n="h.hm-breathing">Breathing</small><b data-hm="resp">14</b><em>rpm</em></div>
+        </div>
+        <p class="hm__foot"><span>ECG · 25 mm/s</span><span data-hm="rhythm">Sinus rhythm</span></p>
       </div>
       <p class="hero__scroll" aria-hidden="true" data-i18n="h.scroll">Scroll</p>
     </section>
@@ -170,8 +171,8 @@
               <svg viewBox="0 0 240 180"><rect x="40" y="96" width="160" height="62" rx="14" class="s-body"/><rect x="104" y="30" width="32" height="70" rx="6" class="s-body"/><rect x="108" y="36" width="24" height="44" rx="4" class="s-screen"/><rect x="22" y="70" width="14" height="80" rx="7" class="s-cu"/><rect x="204" y="70" width="14" height="80" rx="7" class="s-cu"/><circle cx="211" cy="80" r="4" class="s-dot"/><path d="M70 128h20l6-12 8 24 6-12h60" class="s-ecg"/></svg>
             </div>
             <h3 data-i18n="h.the-xpaze-station">The XPaze station</h3>
-            <p data-i18n="h.fixed-in-the-spacecraft">Fixed in the spacecraft or habitat. Tap your card, grip the two handles and, in a single gesture, it measures ECG, heart rate, oxygen and contactless temperature.</p>
-            <ul class="tags"><li>ECG</li><li data-i18n="h.heart-rate">Heart rate</li><li>SpO₂</li><li data-i18n="h.temperature">Temperature</li><li data-i18n="h.cabin-air">Cabin air</li></ul>
+            <p data-i18n="h.fixed-in-the-spacecraft">Fixed in the spacecraft or habitat. Tap your card and grip the two handles: in one gesture it reads more than ten signals, from your ECG to your stress level and your grip strength.</p>
+            <ul class="tags"><li>ECG</li><li>SpO₂</li><li>HRV</li><li data-i18n="h.temperature">Temperature</li><li data-i18n="h.tag-bp">Blood pressure</li><li data-i18n="h.tag-glucose">Glucose</li><li data-i18n="h.tag-stress">Stress</li><li>CO₂</li><li data-i18n="h.tag-radiation">Radiation</li></ul>
           </article>
           <article class="piece">
             <p class="piece__n">B</p>
@@ -188,7 +189,7 @@
               <svg viewBox="0 0 240 180"><rect x="80" y="8" width="80" height="164" rx="16" class="s-body"/><rect x="88" y="18" width="64" height="144" rx="10" class="s-screen"/><circle cx="120" cy="66" r="22" class="s-ring"/><rect x="96" y="104" width="28" height="20" rx="5" class="s-tile"/><rect x="128" y="104" width="16" height="20" rx="5" class="s-tile"/><rect x="96" y="130" width="48" height="20" rx="5" class="s-tile"/></svg>
             </div>
             <h3 data-i18n="h.the-app">The app</h3>
-            <p data-i18n="h.on-the-station-s">On the station’s phone, connected over WiFi to the Raspberry Pi with no internet. It sums up the status at a glance, explains any change and also looks after mood and attention.</p>
+            <p data-i18n="h.on-the-station-s">On the station’s screen or your phone, with no internet needed. It sums up the status at a glance, explains any change and also looks after mood and attention.</p>
             <ul class="tags"><li data-i18n="h.no-internet">No internet</li><li data-i18n="h.explanations">Explanations</li><li data-i18n="h.privacy">Privacy</li></ul>
           </article>
           <article class="piece piece--gesture">
@@ -204,6 +205,24 @@
         </div>
       </div>
 
+      <div class="parts">
+        <h3 class="reveal" data-i18n="h.v2-sensors-title">The sensors of station v2.</h3>
+        <p class="lead lead--sm reveal" data-i18n="h.v2-sensors-lead">Twelve sensors in one gesture. You can try all of them in the app, with a station simulated beat by beat.</p>
+        <dl class="parts__list">
+          <div class="reveal"><dt data-i18n="h.s-ecg-t">ECG · 1 lead</dt><dd data-i18n="h.s-ecg-d">Copper handles as electrodes: rhythm, atrial fibrillation, ectopic beats and QTc.</dd></div>
+          <div class="reveal"><dt data-i18n="h.s-ppg-t">PPG oximeter</dt><dd data-i18n="h.s-ppg-d">Heart rate and blood oxygen at the thumb.</dd></div>
+          <div class="reveal"><dt data-i18n="h.s-ir-t">IR thermometer + ToF</dt><dd data-i18n="h.s-ir-d">Contactless body temperature, measured only at the right distance.</dd></div>
+          <div class="reveal"><dt data-i18n="h.s-resp-t">Breathing rate</dt><dd data-i18n="h.s-resp-d">Derived from how the ECG and pulse wave change with each breath.</dd></div>
+          <div class="reveal"><dt data-i18n="h.s-hrv-t">HRV · RMSSD</dt><dd data-i18n="h.s-hrv-d">Beat-to-beat variability: accumulated fatigue and stress, against your normal.</dd></div>
+          <div class="reveal"><dt data-i18n="h.s-bp-t">Automatic cuff + PTT</dt><dd data-i18n="h.s-bp-d">Blood pressure, plus a cuffless estimate from pulse transit time.</dd></div>
+          <div class="reveal"><dt data-i18n="h.s-glu-t">Bluetooth glucometer</dt><dd data-i18n="h.s-glu-d">Blood glucose straight into your history.</dd></div>
+          <div class="reveal"><dt data-i18n="h.s-eda-t">EDA</dt><dd data-i18n="h.s-eda-d">Electrodermal activity in the handles: acute stress.</dd></div>
+          <div class="reveal"><dt data-i18n="h.s-grip-t">Load cells</dt><dd data-i18n="h.s-grip-d">Grip strength, to track muscle loss in microgravity.</dd></div>
+          <div class="reveal"><dt data-i18n="h.s-co2-t">NDIR CO₂ + cabin air</dt><dd data-i18n="h.s-co2-d">CO₂, temperature, humidity and pressure against NASA-STD-3001.</dd></div>
+          <div class="reveal"><dt data-i18n="h.s-dose-t">Dosimeter</dt><dd data-i18n="h.s-dose-d">Radiation dose rate and accumulated dose, linked to live space weather.</dd></div>
+          <div class="reveal"><dt data-i18n="h.s-rfid-t">RFID</dt><dd data-i18n="h.s-rfid-d">Identifies each astronaut by their card.</dd></div>
+        </dl>
+      </div>
       <div class="qc" id="qc">
         <div class="qc__copy">
           <p class="kicker" data-i18n="h.try-it-here"><span class="spark" aria-hidden="true"></span>Try it here</p>
@@ -384,72 +403,17 @@
 
       <div class="grid4 grid4--priv">
         <article class="cell reveal"><b data-i18n="h.it-stays-on-board">It stays on board</b><p data-i18n="h.whenever-possible-biometric-data">Whenever possible, biometric data never leaves the spacecraft.</p></article>
-        <article class="cell reveal"><b data-i18n="h.processed-locally">Processed locally</b><p data-i18n="h.the-raspberry-pi-creates">The Raspberry Pi creates its own WiFi network: the analysis and the app work without internet.</p></article>
+        <article class="cell reveal"><b data-i18n="h.processed-locally">Processed locally</b><p data-i18n="h.the-raspberry-pi-creates">The station creates its own network: the analysis and the app work without internet.</p></article>
         <article class="cell reveal"><b data-i18n="h.only-what-s-needed">Only what’s needed travels</b><p data-i18n="h.only-the-essentials-are">Only the essentials are synced to Earth, not everything.</p></article>
         <article class="cell reveal"><b data-i18n="h.context-based-access">Context-based access</b><p data-i18n="h.who-sees-what-can">Who sees what can be restricted in each phase of the mission.</p></article>
       </div>
     </section>
 
     <!-- =================================================== 07 POR DENTRO -->
-    <section class="chapter inside" id="dentro" data-chapter="dentro">
-      <header class="ch-head">
-        <p class="ch-num" data-i18n="h.07-inside">07 — Inside</p>
-        <h2 class="reveal" data-i18n="h.this-is-how-the">This is how<br />the station is built.</h2>
-        <p class="lead reveal" data-i18n="h.the-prototype-piece-by">The prototype, piece by piece. Keep scrolling to take it apart.</p>
-      </header>
-
-      <div class="teardown">
-        <div class="teardown__pin">
-          <div class="teardown__steps">
-            <p class="teardown__count"><b>0</b> / 8</p>
-            <ol class="steps">
-              <li class="is-on"><h3 data-i18n="h.station-assembled">Station assembled</h3><p data-i18n="h.200-150-70-mm">200 × 150 × 70 mm, 3D-printed, with a removable tray. Eight steps to open it.</p></li>
-              <li><h3 data-i18n="h.remove-the-phone">Remove the phone</h3><p data-i18n="h.it-just-rests-on">It just rests on the tower, with no cables. It talks to the station over WiFi.</p></li>
-              <li><h3 data-i18n="h.remove-the-caps">Remove the caps</h3><p data-i18n="h.they-press-fit-onto">They press-fit onto the top of the handles. The right one holds the heart rate and oxygen sensor.</p></li>
-              <li><h3 data-i18n="h.pull-out-the-handles">Pull out the handles</h3><p data-i18n="h.each-is-wrapped-in">Each is wrapped in copper tape, which acts as an ECG electrode. Their cables run down inside the tube.</p></li>
-              <li><h3 data-i18n="h.undo-the-four-screws">Undo the four screws</h3><p data-i18n="h.m3-12-mm-screws">M3 × 12 mm screws, one in each corner of the lid.</p></li>
-              <li><h3 data-i18n="h.lift-the-lid">Lift the lid</h3><p data-i18n="h.it-comes-off-with">It comes off with the phone tower. Inside are the temperature, distance and environment sensors.</p></li>
-              <li><h3 data-i18n="h.slide-out-the-tray">Slide out the tray</h3><p data-i18n="h.all-the-electronics-sit">All the electronics sit on a tray that comes out in one piece, fully connected.</p></li>
-              <li><h3 data-i18n="h.separate-the-electronics">Separate the electronics</h3><p data-i18n="h.raspberry-pi-arduino-ecg">Raspberry Pi, Arduino, ECG module, RFID reader and mini breadboard. Each in its own frame.</p></li>
-              <li><h3 data-i18n="h.remove-the-battery">Remove the battery</h3><p data-i18n="h.a-10-000-mah">A 10,000 mAh battery between two rails. It provides autonomy and isolates the ECG from mains power.</p></li>
-            </ol>
-          </div>
-        </div>
-      </div>
-
-      <div class="parts">
-        <h3 class="reveal" data-i18n="h.the-components">The components.</h3>
-        <p class="lead lead--sm reveal" data-i18n="h.accessible-modular-hardware-no">Accessible, modular hardware. No sensor is essential: each new technology joins as one more module.</p>
-        <dl class="parts__list">
-          <div class="reveal"><dt>Raspberry Pi</dt><dd data-i18n="h.the-local-brain-history">The local brain: history, baseline, anomalies and the app.</dd></div>
-          <div class="reveal"><dt>Arduino Uno</dt><dd data-i18n="h.reads-the-sensors-at">Reads the sensors at a steady rate and sends them over USB.</dd></div>
-          <div class="reveal"><dt data-i18n="h.ad8232-copper">AD8232 + copper</dt><dd data-i18n="h.ecg-with-the-handles">ECG with the handles as electrodes.</dd></div>
-          <div class="reveal"><dt>MAX30102</dt><dd data-i18n="h.heart-rate-and-oxygen-2">Heart rate and oxygen at the thumb.</dd></div>
-          <div class="reveal"><dt>MLX90614</dt><dd data-i18n="h.contactless-forehead-temperature">Contactless forehead temperature.</dd></div>
-          <div class="reveal"><dt>VL53L0X</dt><dd data-i18n="h.correct-distance-before-measuring">Correct distance before measuring.</dd></div>
-          <div class="reveal"><dt>AHT20 + BMP280</dt><dd data-i18n="h.cabin-temperature-humidity-and">Cabin temperature, humidity and pressure.</dd></div>
-          <div class="reveal"><dt>RC522</dt><dd data-i18n="h.identifies-each-astronaut-by">Identifies each astronaut by their card.</dd></div>
-        </dl>
-      </div>
-
-      <div class="pipeline">
-        <h3 class="reveal" data-i18n="h.how-it-thinks">How it thinks.</h3>
-        <p class="lead lead--sm reveal" data-i18n="h.lightweight-fast-and-explainable">Lightweight, fast and explainable models, chosen to run on little power and little data per person.</p>
-        <ol class="pipe">
-          <li><b data-i18n="h.context">Context</b><p data-i18n="h.rest-exercise-or-sleep">Rest, exercise or sleep. The same heart rate means different things.</p></li>
-          <li><b data-i18n="h.baseline">Baseline</b><p data-i18n="h.median-and-spread-of">Median and spread of your last few weeks, for each signal.</p></li>
-          <li><b data-i18n="h.deviation">Deviation</b><p data-i18n="h.robust-z-score-median">Robust z-score (median and MAD): how far each signal strays from your normal.</p></li>
-          <li><b data-i18n="h.drift">Drift</b><p data-i18n="h.ewma-to-spot-slow">EWMA to spot slow changes that hold day after day.</p></li>
-          <li><b data-i18n="h.joint-rarity">Joint rarity</b><p data-i18n="h.isolation-forest-rare-combinations">Isolation Forest: rare combinations even when no single signal is extreme.</p></li>
-          <li><b data-i18n="h.explanation">Explanation</b><p data-i18n="h.each-contribution-becomes-a">Each contribution becomes a sentence anyone can understand.</p></li>
-        </ol>
-      </div>
-    </section>
-
     <!-- ==================================================== 08 DATOS NASA -->
     <section class="chapter nasa" id="datos" data-chapter="datos">
       <header class="ch-head">
-        <p class="ch-num" data-i18n="h.08-nasa-data">08 — NASA data</p>
+        <p class="ch-num" data-i18n="h.08-nasa-data">07 — NASA data</p>
         <h2 class="reveal" data-i18n="h.the-nasa-data-we">The NASA data<br />we use.</h2>
         <p class="lead reveal" data-i18n="h.in-all-honesty-what">In all honesty: what XPaze queries <em>live</em> and what <em>underpins</em> its thresholds and design. Every figure has a source.</p>
         <div class="nasa__legend reveal"><span class="tag tag--live" data-i18n="h.live-2"><i></i>Live</span><span class="tag tag--base" data-i18n="h.underpins">Underpins</span></div>
@@ -487,7 +451,7 @@
             <li data-i18n="h.comfort-v2-6013-20"><b>Comfort</b> [V2 6013]: 20–25 °C and 30–60 % humidity.</li>
             <li data-i18n="h.health-v2-6012-18"><b>Health</b> [V2 6012]: 18–27 °C and 25–75 %.</li>
             <li data-i18n="h.total-pressure-v2-6006"><b>Total pressure</b> [V2 6006].</li>
-            <li data-i18n="h.co-3-mmhg-averaged"><b>CO₂</b> ≤ 3 mmHg averaged over 1 h [V2 6004]. Our prototype does not measure CO₂ yet.</li>
+            <li data-i18n="h.co-3-mmhg-averaged"><b>CO₂</b> ≤ 3 mmHg averaged over 1 h [V2 6004]. Station v2 measures it with an NDIR sensor (simulated in the app).</li>
           </ul>
           <p class="ncard__use" data-i18n="h.these-are-the-limits">These are the limits of the cabin traffic light.</p>
           <a href="https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-002-eclss.pdf" target="_blank" rel="noopener" data-i18n="h.eclss-fact-sheet">ECLSS fact sheet ↗</a>
@@ -536,7 +500,7 @@
     <!-- =================================================== 09 PROTOTIPO -->
     <section class="chapter proto" id="prototipo" data-chapter="prototipo">
       <header class="ch-head">
-        <p class="ch-num" data-i18n="h.09-prototype">09 — Prototype</p>
+        <p class="ch-num" data-i18n="h.09-prototype">08 — Prototype</p>
         <h2 class="reveal" data-i18n="h.what-already-works-and">What already works.<br /><span class="muted">And what comes next.</span></h2>
         <p class="lead reveal" data-i18n="h.it-is-not-a">It is not a certified medical device. It is proof that the idea works.</p>
       </header>
@@ -545,7 +509,7 @@
         <div class="status__col reveal">
           <p class="status__k status__k--ok" data-i18n="h.built">Built</p>
           <ul>
-            <li data-i18n="h.station-with-an-arduino">Station with an Arduino Uno and a Raspberry Pi. The Pi advertises itself over Bluetooth and WiFi: no cables to the phone.</li>
+            <li data-i18n="h.station-with-an-arduino">Station v2 simulated beat by beat in the cloud: ECG, temperature, breathing, HRV, QTc, blood pressure, glucose, stress, grip, CO₂ and radiation. Heart rate, HRV and rhythm are computed from the beats.</li>
             <li data-i18n="h.app-with-a-5">App with a 5-step guided check-up: heart rate and oxygen (sensor or by hand), blood pressure, glucose, mood and sleep, and warning signs.</li>
             <li data-i18n="h.traffic-light-with-fixed">Traffic light with fixed, citable thresholds (NEWS2, ACC/AHA, ADA, PHQ-2, AASM and spaceflight habitability standards). The AI explains it; it never changes a color.</li>
             <li data-i18n="h.paze-a-psychologist-by">Paze: a psychologist by voice and text, with memory between sessions and your data as context.</li>
@@ -556,10 +520,10 @@
         <div class="status__col reveal">
           <p class="status__k" data-i18n="h.simulated-and-what-comes">Simulated, and what comes next</p>
           <ul>
-            <li data-i18n="h.simulated-the-crew-and"><b>Simulated:</b> the crew and the mission environment.</li>
-            <li data-i18n="h.next-a-single-bluetooth"><b>Next:</b> a single Bluetooth chip (ESP32) for a smaller station.</li>
+            <li data-i18n="h.simulated-the-crew-and"><b>Simulated:</b> the station v2 sensors, the crew and the mission environment.</li>
+            <li data-i18n="h.next-a-single-bluetooth"><b>Next:</b> build station v2 with these sensors and test it in analog missions.</li>
             <li data-i18n="h.next-weeks-long-trends"><b>Next:</b> weeks-long trends with a dedicated model.</li>
-            <li data-i18n="h.next-ecg-and-contactless"><b>Next:</b> ECG and contactless temperature built into the physical station.</li>
+            <li data-i18n="h.next-ecg-and-contactless"><b>Next:</b> validate the rhythm detection against clinical ECGs.</li>
           </ul>
         </div>
       </div>

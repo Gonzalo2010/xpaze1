@@ -38,6 +38,7 @@ saved.healthCodes ||= {};
 saved.memory ||= {};
 saved.facts ||= {};
 saved.about ||= {};
+saved.medical ||= {};
 if (saved.healthCode) { saved.healthCodes.GONZALO ||= saved.healthCode; delete saved.healthCode; } // código de la versión anterior (era de Gonzalo)
 saved.history ||= {};
 
@@ -346,6 +347,7 @@ function topbar() {
 
 function live() {
   const p = S.person;
+  if (S.link?.kind === 'sim' && p) S.link.setFinger(true); // en la simulada, la estación ya está midiendo
   const node = el(`
     <section class="screen live">
       ${topbar()}
@@ -386,9 +388,20 @@ function live() {
       <h3 class="section-t">${L('Clima espacial', 'Space weather')} · DONKI (NASA)</h3>
       <div class="spacebox" data-live="space">${spaceBox()}</div>
 
-      <h3 class="section-t">${L('Reloj', 'Watch')} · Samsung Health</h3>
-      <div class="shealth" data-live="shealth">${healthBox()}</div>
-      <h3 class="section-t">${L('Reloj · en directo', 'Watch · live')}</h3>
+      ${S.link?.kind !== 'sim' || p?.real ? `<h3 class="section-t">${L('Reloj', 'Watch')} · Samsung Health</h3>
+      <div class="shealth" data-live="shealth">${healthBox()}</div>` : ''}
+      ${S.link?.kind !== 'sim' ? watchLive() : ''}
+      ${S.link?.kind !== 'sim' ? '<div class="sensors" data-live="sensors"></div>' : ''}
+      ${S.link?.kind === 'sim' ? simPanel() : ''}
+    </section>`);
+  wire(node);
+  node.querySelector('[data-act="home"]').onclick = () => go('home');
+  return node;
+}
+
+// Reloj en directo (solo con la estación física).
+function watchLive() {
+  return `<h3 class="section-t">${L('Reloj · en directo', 'Watch · live')}</h3>
       <div class="watch" data-live="watchbox">
         <div class="tiles tiles--3">
           <div class="tile tile--sm"><small>${L('Pulso', 'Heart rate')}</small><b data-live="wbpm">—</b><em>${L('lpm', 'bpm')}</em></div>
@@ -396,14 +409,7 @@ function live() {
           <div class="tile tile--sm"><small>SpO₂</small><b data-live="wspo2">—</b><em>%</em></div>
         </div>
         <div class="watch__foot"><span data-live="wstate">—</span><button class="chip-btn" data-act="wspo2">${L('Medir SpO₂ (30 s)', 'Measure SpO₂ (30 s)')}</button></div>
-      </div>
-
-      <div class="sensors" data-live="sensors"></div>
-      ${S.link?.kind === 'sim' ? simPanel() : ''}
-    </section>`);
-  wire(node);
-  node.querySelector('[data-act="home"]').onclick = () => go('home');
-  return node;
+      </div>`;
 }
 
 // Estación v2 (solo en la simulada): ECG de los asideros y sensores ampliados.
@@ -440,7 +446,6 @@ function simPanel() {
       <div class="sim__row"><span>${L('Tarjeta', 'Card')}</span>
         <div class="seg">${PEOPLE.map((c) => `<button data-sim-card="${c.uid}">${esc(c.name.split(' ')[0])}</button>`).join('')}</div></div>
       <div class="sim__row"><span>${L('Dedo en el sensor', 'Finger on sensor')}</span><button class="switch" data-sim="finger" aria-pressed="false" aria-label="${L('Dedo en el sensor', 'Finger on sensor')}"><i></i></button></div>
-      <div class="sim__row"><span>${L('Reloj conectado', 'Watch connected')}</span><button class="switch" data-sim="watch" aria-pressed="true" aria-label="${L('Reloj conectado', 'Watch connected')}"><i></i></button></div>
       <div class="sim__row sim__row--col"><span>${L('Qué le pasa a esta persona', 'What is happening to this person')}</span>
         <div class="seg seg--wrap seg--left">${SIM_SCENARIOS.map(([k]) => `<button data-sim-prof="${k}" class="${S.link?.scenario === k ? 'is-on' : ''}">${SCEN_NAME(k)}</button>`).join('')}</div>
         <p class="fine" data-live="scen">${SCEN_DESC(S.link?.scenario || 'rest')}</p></div>
@@ -503,6 +508,15 @@ function wire(node) {
     setText('scen', SCEN_DESC(b.dataset.simProf));
   }));
 }
+
+// Ficha médica de ficción de la tripulación (la persona puede editarla). Los perfiles reales empiezan vacíos.
+const CREW_MEDICAL = {
+  vega: ['Migrañas ocasionales (2–3 al mes), peores con poco sueño. Melatonina 1 mg algunas noches. Alergia a la penicilina. Corredora de fondo; en la nave entrena 2 h al día.', 'Occasional migraines (2–3 a month), worse with little sleep. Melatonin 1 mg some nights. Penicillin allergy. Long-distance runner; trains 2 h a day on board.'],
+  iker: ['Ansiedad leve tratada con terapia cognitivo-conductual en 2023, sin medicación. Menisco de la rodilla derecha operado en 2021. Sin alergias. Bebe mucho café.', 'Mild anxiety treated with CBT in 2023, no medication. Right knee meniscus surgery in 2021. No allergies. Drinks a lot of coffee.'],
+  noa: ['Hipotiroidismo controlado con levotiroxina 50 µg al día. Sin alergias. Le cuesta dormir después de los turnos de noche.', 'Hypothyroidism controlled with levothyroxine 50 µg a day. No allergies. Struggles to sleep after night shifts.'],
+  amara: ['Deportista de resistencia: bradicardia sinusal fisiológica (pulso en reposo ~49). Asma leve inducida por el ejercicio, con inhalador de rescate. Sin alergias.', 'Endurance athlete: physiological sinus bradycardia (resting heart rate ~49). Mild exercise-induced asthma, with a rescue inhaler. No allergies.'],
+};
+const medicalOf = (uid) => saved.medical[uid] ?? (crewByUid[uid] ? L(...CREW_MEDICAL[crewByUid[uid].id]) : '');
 
 // Fisiología de cada persona para el cuerpo simulado (de su ficha de tripulación).
 function personBody(p) {
@@ -697,13 +711,14 @@ function stepIntro(id) {
     <h2>${STEP_TITLE[id]}</h2>
     ${m ? `<details class="why"><summary>${L('¿Por qué se mide?', 'Why measure this?')}</summary><p>${esc(m.why)}</p>
       ${id === 'hr' ? `<p>${esc(MEASURES.spo2.why)}</p>` : ''}</details>
-      <ol class="howto">${m.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}`;
+      ${S.link?.kind === 'sim' ? '' : `<ol class="howto">${m.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`}` : ''}`;
 }
 
 function check() {
   const c = S.check;
   const id = STEPS[c.step];
-  const views = { hr: stepHr, bp: stepBp, glucose: stepGlucose, mind: stepMind, flags: stepFlags };
+  const sim = S.link?.kind === 'sim';
+  const views = { hr: stepHr, bp: sim ? stepBpSim : stepBp, glucose: sim ? stepGlucoseSim : stepGlucose, mind: stepMind, flags: stepFlags };
   const node = views[id]();
   node.querySelector('[data-act="cancel"]')?.addEventListener('click', () => { if (confirm(L('¿Cancelar el chequeo? No se guardará.', 'Cancel the check-up? It will not be saved.'))) { endCheck(); go('home'); } });
   node.querySelector('[data-act="menu"]').onclick = () => {};
@@ -746,7 +761,7 @@ function stepHr() {
         <div class="wavebox"><canvas class="wave" aria-hidden="true"></canvas></div>
         ${S.link?.kind === 'sim' ? `<div class="ecgbox ecgbox--sm"><canvas class="ecg" data-sec="3" aria-hidden="true"></canvas></div>
         <p class="fine">${L('A la vez: ECG de los asideros, temperatura sin contacto, respiración, HRV, QTc, tensión estimada, EDA y fuerza de agarre.', 'At the same time: handle ECG, contactless temperature, breathing, HRV, QTc, estimated blood pressure, EDA and grip strength.')}</p>` : ''}
-        <button class="btn btn--ghost btn--block" data-act="manual">${L('El sensor no funciona: introducir a mano', 'Sensor not working? Enter it manually')}</button>
+        ${S.link?.kind === 'sim' ? '' : `<button class="btn btn--ghost btn--block" data-act="manual">${L('El sensor no funciona: introducir a mano', 'Sensor not working? Enter it manually')}</button>`}
       </div>
       <form class="manual" ${c.manual ? '' : 'hidden'}>
         <p class="note">${L('Medida manual: usa el pulsioxímetro de la enfermería y anota lo que marque.', 'Manual reading: use the pulse oximeter from the medical kit and enter what it shows.')}</p>
@@ -756,7 +771,7 @@ function stepHr() {
       </form>
       <button class="btn btn--line btn--block" data-act="cancel">${L('Cancelar chequeo', 'Cancel check-up')}</button>
     </section>`);
-  node.querySelector('[data-act="manual"]').onclick = () => { c.manual = true; go('check'); };
+  node.querySelector('[data-act="manual"]')?.addEventListener('click', () => { c.manual = true; go('check'); });
   node.querySelector('form.manual').onsubmit = (e) => {
     e.preventDefault();
     const hr = readNum(node, 'hr', 25, 230);
@@ -767,6 +782,83 @@ function stepHr() {
     c.values.manualHr = true;
     nextStep();
   };
+  return node;
+}
+
+// Medida simulada con animación: un anillo que se llena mientras «mide» y el valor al final.
+function simMeasure(node, { seconds, tick, done }) {
+  const fg = node.querySelector('.ring__fg');
+  const t0 = performance.now();
+  const timer = setInterval(() => {
+    if (S.screen !== 'check') { clearInterval(timer); return; }
+    const p = Math.min(1, (performance.now() - t0) / (seconds * 1000));
+    if (fg) fg.style.strokeDashoffset = String(100 - p * 100);
+    tick?.(p);
+    if (p >= 1) { clearInterval(timer); done(); }
+  }, 80);
+}
+const simRing = (unit) => `<div class="ring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="ring__bg"/><circle cx="60" cy="60" r="52" class="ring__fg" pathLength="100"/></svg>
+          <div class="ring__in"><b data-live="mval">—</b><small>${unit}</small></div></div>`;
+
+// Tensión con el manguito automático de la estación: se infla, desinfla y da el valor solo.
+function stepBpSim() {
+  const node = el(`
+    <section class="screen check">
+      ${topbar()}
+      ${stepIntro('bp')}
+      <div class="sensor-box">
+        ${simRing('mmHg')}
+        <h3 class="check__msg" data-live="mmsg">${L('Inflando el manguito…', 'Inflating the cuff…')}</h3>
+        <p class="fine">${L('Manguito automático en el brazo izquierdo, a la altura del corazón. No hables ni te muevas.', 'Automatic cuff on the left arm, at heart level. Do not talk or move.')}</p>
+      </div>
+      <button class="btn btn--line btn--block" data-act="cancel">${L('Cancelar chequeo', 'Cancel check-up')}</button>
+    </section>`);
+  const val = node.querySelector('[data-live="mval"]'), msg = node.querySelector('[data-live="mmsg"]');
+  const bp = S.link.body.cuff();
+  simMeasure(node, {
+    seconds: S.demo ? 3.5 : 7,
+    tick: (p) => {
+      const pr = p < 0.35 ? Math.round((p / 0.35) * (bp.sys + 40)) : Math.round(bp.sys + 40 - ((p - 0.35) / 0.65) * (bp.sys + 40 - bp.dia + 10));
+      val.textContent = String(pr);
+      msg.textContent = p < 0.35 ? L('Inflando el manguito…', 'Inflating the cuff…') : L('Midiendo mientras desinfla…', 'Measuring while it deflates…');
+    },
+    done: () => {
+      val.textContent = `${bp.sys}/${bp.dia}`;
+      msg.textContent = L('Listo', 'Done');
+      S.check.values.bp = bp;
+      vibrate(40);
+      setTimeout(() => { if (S.screen === 'check' && STEPS[S.check?.step] === 'bp') nextStep(); }, S.demo ? 700 : 1300);
+    },
+  });
+  return node;
+}
+
+// Glucosa con el glucómetro conectado: «gota de sangre» y unos segundos de análisis.
+function stepGlucoseSim() {
+  const node = el(`
+    <section class="screen check">
+      ${topbar()}
+      ${stepIntro('glucose')}
+      <div class="sensor-box">
+        ${simRing('mg/dL')}
+        <h3 class="check__msg" data-live="mmsg">${L('Analizando la gota…', 'Analysing the drop…')}</h3>
+        <p class="fine">${L('Glucómetro conectado por Bluetooth: una gota de la yema del dedo en la tira.', 'Bluetooth glucometer: one drop from your fingertip on the strip.')}</p>
+      </div>
+      <button class="btn btn--line btn--block" data-act="cancel">${L('Cancelar chequeo', 'Cancel check-up')}</button>
+    </section>`);
+  const val = node.querySelector('[data-live="mval"]'), msg = node.querySelector('[data-live="mmsg"]');
+  const g = S.link.body.glucose();
+  simMeasure(node, {
+    seconds: S.demo ? 2.5 : 5,
+    tick: (p) => { val.textContent = String(Math.max(0, Math.ceil((S.demo ? 2.5 : 5) * (1 - p)))); },
+    done: () => {
+      val.textContent = String(g);
+      msg.textContent = L('Listo', 'Done');
+      S.check.values.glucose = g; S.check.values.fasting = false;
+      vibrate(40);
+      setTimeout(() => { if (S.screen === 'check' && STEPS[S.check?.step] === 'glucose') nextStep(); }, S.demo ? 700 : 1300);
+    },
+  });
   return node;
 }
 
@@ -813,13 +905,15 @@ function stepGlucose() {
 }
 
 function stepMind() {
-  const a = { q0: null, q1: null };
+  const sim = S.link?.kind === 'sim';
+  const a = sim ? { q0: 0, q1: 0 } : { q0: null, q1: null };
   const node = el(`
     <section class="screen check">
       ${topbar()}
       ${stepIntro('mind')}
       ${PHQ2.map((q, i) => `<fieldset class="q"><legend>${L('En las últimas dos semanas', 'Over the last two weeks')}: ${esc(q.toLowerCase())}</legend>
-        <div class="seg seg--wrap seg--left">${PHQ2_ANSWERS.map((t, v) => `<button type="button" data-q="${i}" data-v="${v}">${t}</button>`).join('')}</div></fieldset>`).join('')}
+        <div class="seg seg--wrap seg--left">${PHQ2_ANSWERS.map((t, v) => `<button type="button" data-q="${i}" data-v="${v}" class="${sim && v === 0 ? 'is-on' : ''}">${t}</button>`).join('')}</div></fieldset>`).join('')}
+      ${sim ? `<p class="note">${L('Rellenado con datos de prueba: cámbialo si quieres y pulsa Siguiente.', 'Filled in with test data: change it if you like and tap Next.')}</p>` : ''}
       ${numberField('sleep', L('Horas dormidas esta noche', 'Hours slept last night'), 'h', { min: 0, max: 16, step: 0.5, value: S.health?.sleep?.hours != null ? Math.round(S.health.sleep.hours * 2) / 2 : 7 })}
       ${S.health?.sleep?.hours != null ? `<p class="fine">${L(`Según tu reloj (Samsung Health): ${fmt(S.health.sleep.hours, 1)} h. Corrígelo si no es así.`, `According to your watch (Samsung Health): ${fmt(S.health.sleep.hours, 1)} h. Correct it if that is wrong.`)}</p>` : ''}
       <label class="field"><span>${L('Estrés hoy', 'Stress today')}: <b data-live="stressv">3</b> ${L('de', 'out of')} 10</span><input name="stress" type="range" min="0" max="10" step="1" value="3"/></label>
@@ -1055,7 +1149,7 @@ async function explain(node) {
   try {
     R.explanation = await streamAI('explicar', { check: {
       person: S.person?.name, environment: `${env.name} (${env.gravity}; ${L('retardo con Tierra', 'delay to Earth')} ${env.delay})${spaceNow()?.level ? `. Clima espacial: ${spaceNow().headline}` : ''}`,
-      overall: R.overall, simulated: R.entry.sim,
+      overall: R.overall, simulated: R.entry.sim, flags: R.flags,
       results: R.results.map((r) => ({ name: r.name, display: r.display, level: r.level, reason: r.reason })),
       station: R.ext ? { eda: R.ext.eda, grip: R.ext.grip, co2mmHg: R.ext.co2, doseUSvH: R.ext.dose, cufflessBP: R.ext.bpEst } : undefined,
       plan: { now: R.plan.now, crew: R.plan.crew, surgeon: R.plan.surgeon, evac: R.plan.evac },
@@ -1188,6 +1282,8 @@ function spaceBox() {
 
 /* ------------------------------------------------ memoria de Paze (solo en este dispositivo) -- */
 async function rememberSession(uid, messages) {
+  messages = messages.filter((m) => m.content !== OPEN_TOKEN);
+  if (messages[0]?.role === 'assistant') messages = [{ role: 'user', content: '(Paze abre la sesión)' }, ...messages];
   if (!uid || messages.filter((m) => m.role === 'user').length < 2) return;
   try {
     const r = await fetch(new URL('api/psicologa/resumen', location.href), {
@@ -1267,12 +1363,13 @@ function buildContext() {
     plan: r && r.overall > 0 ? [...r.plan.now, r.plan.crew, r.plan.surgeon] : [],
     history: hist.map((h) => [
       day(h.at), h.bpm != null && `pulso ${h.bpm}`, h.bp && `tensión ${h.bp.sys}/${h.bp.dia}`, h.glucose != null && `glucosa ${h.glucose}`,
-      h.mind && `sueño ${h.mind.sleep} h, PHQ-2 ${h.mind.phq2}, estrés ${h.mind.stress}`, `→ ${COLOR[h.overall ?? 0]}`,
+      h.mind && `sueño ${h.mind.sleep} h, PHQ-2 ${h.mind.phq2}, estrés ${h.mind.stress}`, h.rmssd != null && `HRV ${h.rmssd} ms`, h.temp != null && `temp ${h.temp} °C`, h.rhythm && h.rhythm !== 'sinus' && `ritmo ${h.rhythm}`, `→ ${COLOR[h.overall ?? 0]}`,
     ].filter(Boolean).join(', ')),
     live, watch, samsung: healthContext(),
     station: S.ext ? { 'ECG': `${S.ext.rhythm || '—'}${S.ext.ectopics ? `, ${S.ext.ectopics} extrasístoles` : ''}`, 'Pulso ECG': S.ext.ecgHr, 'HRV RMSSD (ms)': S.ext.rmssd, 'QTc (ms)': S.ext.qtc, 'Temperatura corporal': S.ext.temp, 'Respiración (rpm)': S.ext.rr, 'EDA (µS, estrés)': S.ext.eda, 'Agarre (kg)': S.ext.grip, 'CO₂ cabina (mmHg)': S.ext.co2, 'Radiación (µSv/h)': S.ext.dose, 'Situación simulada': S.link?.scenario } : null,
     insights: buildInsights(),
     about: saved.about[p?.uid] || '',
+    medical: medicalOf(p?.uid),
     facts: saved.facts[p?.uid] || [],
     memory: (saved.memory[p?.uid] || []).map((m) => `${new Date(m.at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}: ${m.summary}`),
     localTime: new Date().toLocaleString('es-ES', { weekday: 'long', hour: '2-digit', minute: '2-digit' }),
@@ -1323,8 +1420,7 @@ function chat() {
         <p class="fine voice__note">${micAvailable() ? L('Conoce tus datos de XPaze (chequeos, historial, constantes y Mente) para entenderte mejor; nunca tu diario. No se guarda nada de la conversación.', 'Paze knows your XPaze data (check-ups, history, vitals and Mind) to understand you better, never your journal. The conversation is not stored.') : L('Este navegador no deja usar el micrófono aquí (hace falta https). Usa el modo texto.', 'This browser does not allow the microphone here (https is required). Use text mode.')}</p>
       </div>` : `
       <div class="chat-list" role="log" aria-live="polite">
-        <div class="msg msg--ai"><p>${L('Hola', 'Hi')}${S.person ? `, ${esc(S.person.name.split(' ')[0])}` : ''}. ${L('Soy Paze, la psicóloga de a bordo.', 'I’m Paze, the on-board psychologist.')} ${(saved.memory[S.person?.uid] || []).length ? L('Me alegra verte de nuevo. ', 'Good to see you again. ') : ''}${L('Puedes contarme cómo estás, qué te preocupa o simplemente desahogarte. ¿Cómo te encuentras hoy?', 'You can tell me how you are, what worries you, or just let off steam. How are you feeling today?')}</p></div>
-        ${C.history.map((m) => `<div class="msg msg--${m.role === 'user' ? 'me' : 'ai'}"><p>${esc(m.content)}</p></div>`).join('')}
+        ${C.history.filter((m) => m.content !== OPEN_TOKEN).map((m) => `<div class="msg msg--${m.role === 'user' ? 'me' : 'ai'}"><p>${esc(m.content)}</p></div>`).join('')}
       </div>
       <div class="chips-row">${L(['Últimamente duermo fatal', 'Me siento lejos de todos', 'He discutido con un compañero'], ['I’ve been sleeping badly lately', 'I feel far from everyone', 'I had an argument with a crewmate']).map((s) => `<button class="chip-btn" data-say="${esc(s)}">${esc(s)}</button>`).join('')}</div>
       <div class="compose"><textarea rows="2" maxlength="2000" placeholder="${L('Escribe lo que quieras contar…', 'Write whatever you want to share…')}" aria-label="${L('Mensaje', 'Message')}"></textarea><button class="btn btn--dark" data-act="send">${L('Enviar', 'Send')}</button></div>
@@ -1338,6 +1434,9 @@ function chat() {
     if (!confirm(L('¿Borrar lo que Paze recuerda de tus sesiones anteriores?', 'Delete what Paze remembers from your previous sessions?'))) return;
     delete saved.memory[S.person?.uid]; delete saved.facts[S.person?.uid]; store.save(saved); render();
   });
+  node.querySelector('[data-act="medical"]')?.addEventListener('input', (e) => {
+    saved.medical[S.person?.uid] = e.target.value.slice(0, 2000); store.save(saved);
+  });
   node.querySelector('[data-act="about"]')?.addEventListener('input', (e) => {
     saved.about[S.person?.uid] = e.target.value.slice(0, 1500); store.save(saved);
   });
@@ -1349,8 +1448,33 @@ function chat() {
   node.querySelector('[data-act="home"]').onclick = () => { S.voice?.stop(); go(S.result ? 'result' : 'home'); };
   wire(node);
   if (voice) wireVoice(node, flagCrisis);
-  else wireText(node, C, flagCrisis);
+  else { wireText(node, C, flagCrisis); openSession(node, C); }
   return node;
+}
+
+// Paze abre la sesión: un saludo con una pregunta concreta basada en los datos de la persona.
+const OPEN_TOKEN = '__inicio__';
+const staticGreeting = () => `${L('Hola', 'Hi')}${S.person ? `, ${S.person.name.split(' ')[0]}` : ''}. ${L('Soy Paze, la psicóloga de a bordo. Para empezar: ¿cómo has dormido esta noche?', 'I’m Paze, the on-board psychologist. To start: how did you sleep last night?')}`;
+async function openSession(node, C) {
+  if (C.history.length || C.opening) return;
+  C.opening = true;
+  const list = node.querySelector('.chat-list');
+  const send = node.querySelector('[data-act="send"]');
+  const out = el('<div class="msg msg--ai is-typing"><p></p></div>');
+  list.append(out);
+  if (send) send.disabled = true;
+  const first = { role: 'user', content: OPEN_TOKEN };
+  let reply;
+  try {
+    reply = await streamAI('psicologa', { messages: [first], context: buildContext(), lang: lang() }, (t) => { out.firstChild.textContent = t; });
+  } catch {
+    reply = staticGreeting();
+    out.firstChild.textContent = reply;
+  }
+  if (S.chat === C && !C.history.length) C.history.push(first, { role: 'assistant', content: reply });
+  out.classList.remove('is-typing');
+  if (send) send.disabled = false;
+  C.opening = false;
 }
 
 function memoryBox() {
@@ -1358,6 +1482,8 @@ function memoryBox() {
   const mem = saved.memory[uid] || [];
   const facts = saved.facts[uid] || [];
   return `<details class="memory"><summary>${L('Lo que Paze sabe de ti', 'What Paze knows about you')}${mem.length || facts.length ? L(` (${facts.length} datos · ${mem.length} sesiones)`, ` (${facts.length} facts · ${mem.length} sessions)`) : ''}</summary>
+    <label class="about"><span>${L('Mi historial médico: antecedentes, medicación, alergias, operaciones, hábitos…', 'My medical history: conditions, medication, allergies, surgery, habits…')}</span>
+      <textarea rows="3" maxlength="2000" data-act="medical" placeholder="${L('Ej.: asma leve con inhalador; tomo melatonina; alergia a la penicilina.', 'E.g. mild asthma with an inhaler; I take melatonin; penicillin allergy.')}">${esc(medicalOf(uid))}</textarea></label>
     <label class="about"><span>${L('Sobre mí (opcional): cómo prefieres que te hable, qué te ayuda, qué te preocupa…', 'About me (optional): how you like to be spoken to, what helps you, what worries you…')}</span>
       <textarea rows="3" maxlength="1500" data-act="about" placeholder="${L('Ej.: prefiero que vaya al grano; me ayuda salir a correr; estos días me preocupa la presentación.', 'E.g. I prefer you get to the point; running helps me; I am worried about the presentation these days.')}">${esc(saved.about[uid] || '')}</textarea></label>
     ${facts.length ? `<p class="fine"><b>${L('Lo que ha aprendido de ti', 'What it has learned about you')}</b></p><ul>${facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
@@ -1581,29 +1707,29 @@ async function runDemo() {
     await demoWait(1500, id); demoScroll('.ring');
     await demoUntil(() => !S.check || S.check.step >= 1, id);
     const fill = async (values) => { Object.assign(S.check.values, values); await demoWait(1300, id); nextStep(); };
-    await demoWait(1200, id); await fill({ bp: { sys: 124, dia: 79 } });
-    await fill({ glucose: 97, fasting: false });
+    await demoUntil(() => !S.check || S.check.step >= 3, id, 20000); // tensión y glucosa se miden solas
     await fill({ mind: { phq2: 2, sleep: 5, stress: 7 } });
     await demoWait(900, id); S.check.values.flags = []; nextStep();
     await demoWait(800, id);
     demoCaption(L('Su pulso está dentro del rango general de cualquier monitor… pero muy lejos de SU normal. XPaze lo ve.', 'Her heart rate is within the general range any monitor uses… but far from HER normal. XPaze sees it.'), 4);
     demoScroll('.blcharts');
-    await demoWait(8000, id);
+    await demoWait(7000, id);
     demoCaption(L('La IA explica el resultado en lenguaje llano. El color lo deciden reglas fijas; la IA no puede cambiarlo.', 'The AI explains the result in plain language. Fixed rules decide the colour; the AI cannot change it.'), 5);
     demoScroll('.ai-box');
     await demoWait(8000, id);
-    demoCaption(L('Y Paze, la psicóloga de a bordo, ya conoce estos datos.', 'And Paze, the on-board psychologist, already knows this data.'), 6);
+    demoCaption(L('Paze, la psicóloga de a bordo, ya conoce estos datos y abre ella la sesión con una pregunta.', 'Paze, the on-board psychologist, already knows this data and opens the session with a question.'), 6);
     saved.chatMode = 'texto';
     S.chat = null;
     openChat();
-    await demoWait(900, id);
+    await demoUntil(() => { const s = app.querySelector('[data-act="send"]'); return s && !s.disabled && app.querySelector('.msg--ai:not(.is-typing)'); }, id, 30000).catch(() => {});
+    await demoWait(2500, id);
     const ta = app.querySelector('.compose textarea');
     if (ta) {
       ta.value = L('Llevo unos días durmiendo fatal y estoy irritable con la tripulación.', 'I have been sleeping terribly for a few days and I am irritable with the crew.');
       app.querySelector('[data-act="send"]')?.click();
     }
-    await demoUntil(() => { const m = [...app.querySelectorAll('.msg--ai')]; return m.length >= 2 && !m.at(-1).classList.contains('is-typing'); }, id, 40000).catch(() => {});
-    await demoWait(5000, id);
+    await demoUntil(() => { const m = [...app.querySelectorAll('.msg--ai')]; return m.length >= 2 && !m.at(-1).classList.contains('is-typing') && m.at(-1).textContent.length > 20; }, id, 40000).catch(() => {});
+    await demoWait(3500, id);
     demoCaption(L('XPaze: te compara contigo, aunque la Tierra esté a 11 minutos.', 'XPaze: it compares you with yourself, even when Earth is 11 minutes away.'), 7);
     await demoWait(6000, id);
     document.querySelector('.demo-cap')?.remove();

@@ -609,3 +609,28 @@ h3 { font-size: clamp(1.6rem, 1.1rem + 1.8vw, 2.6rem); font-weight: 720; line-he
 .finale::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 30%; background: linear-gradient(var(--paper), transparent); pointer-events: none; z-index: 0; }
 .no-earth .finale__earth { display: none; }
 @media (max-width: 860px) { .finale { padding-bottom: clamp(220px, 34vh, 340px); } .finale__earth { height: 60vh; } }
+
+/* ------------------------------------- portada: monitor de la estación v2 -- */
+.hero__monitor {
+  position: absolute; right: var(--gutter); top: 50%; transform: translateY(-46%); z-index: 2;
+  width: min(42vw, 520px); padding: 18px 20px 14px; border-radius: 26px;
+  background: rgba(255, 253, 251, 0.92); border: 1px solid rgba(229, 72, 77, 0.2);
+  box-shadow: 0 40px 80px -40px rgba(20, 20, 20, 0.35); backdrop-filter: blur(12px);
+}
+.hm__head { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+.hm__dot { width: 9px; height: 9px; border-radius: 50%; background: var(--red, #e5484d); box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.5); animation: hmping 1.6s ease-out infinite; }
+@keyframes hmping { 70% { box-shadow: 0 0 0 9px rgba(229, 72, 77, 0); } 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0); } }
+.hm__sim { margin-left: auto; font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; }
+.hm__ecg { display: block; width: 100%; height: 170px; margin: 12px 0 10px; }
+.hm__vals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
+.hm__vals > div { background: var(--card, #fbfaf7); padding: 10px 12px; }
+.hm__vals small { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.hm__vals b { font-size: 24px; font-weight: 720; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.hm__vals em { font-style: normal; font-size: 12px; color: var(--muted); margin-left: 3px; }
+.hm__foot { display: flex; justify-content: space-between; margin-top: 10px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.hm__foot span:last-child { color: var(--green-ink, #1c8a2c); font-weight: 500; }
+@media (max-width: 1200px) {
+  .hero__monitor { position: relative; right: auto; top: auto; transform: none; width: 100%; max-width: 560px; margin: 40px auto 0; }
+  .hero { padding-bottom: 80px; }
+}
+@media (max-width: 520px) { .hm__vals { grid-template-columns: 1fr 1fr; } .hm__ecg { height: 130px; } }

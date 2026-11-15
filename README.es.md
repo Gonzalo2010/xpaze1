@@ -15,22 +15,21 @@ npm test          # 61 tests del motor de análisis y del módulo Mente
 
 | # | Capítulo | Efecto |
 |---|---|---|
-| — | Hero | Título por líneas, estación 3D que gira con el scroll (en móvil, imagen fija) |
+| — | Hero | Título por líneas y monitor con ECG en directo de la estación v2 simulada (`src/landing/heromonitor.js`) |
 | 01 | El problema | Nueve señales dispersas que se juntan en «una sola lectura» (fijado) |
 | 02 | La idea | Interactivo: el mismo 108 ppm en tres contextos |
-| 03 | El sistema | Carrusel horizontal fijado: estación, reloj, app y el gesto |
+| 03 | El sistema | Carrusel horizontal fijado (estación, reloj, app y el gesto) y los 12 sensores de la estación v2 |
 | 04 | Tu normal | Gráfica de 58 días que se dibuja con el scroll y la alerta explicada |
 | 05 | La mente | Rejilla, test de reacción y respiración guiada que funcionan de verdad |
 | 06 | Autonomía | Retardo real Tierra–Marte calculado para hoy (`src/mars.js`) |
-| 07 | Por dentro | Desmontaje 3D de la estación en 8 pasos, componentes y cómo piensa |
-| 08 | Prototipo | Lo que funciona hoy y lo que está en integración, usos en la Tierra |
+| 07 | Datos de la NASA | Qué datos de la NASA usamos y para qué |
+| 08 | Prototipo | Lo que funciona hoy y lo que viene, usos en la Tierra |
 
 ## Ficheros
 
-- `index.html`: todo el contenido (solo español por ahora).
+- `index.html`: todo el contenido, en inglés; el español está en `src/landing/i18n.js`.
 - `src/style.css`: estilos. Los colores están como variables en `:root`.
 - `src/main.js`: Lenis (scroll suave), GSAP ScrollTrigger y las interacciones.
-- `src/stage.js`: lienzo 3D fijo. `src/station.js`: modelo real y desmontaje.
 - `src/mars.js`: posición de Tierra y Marte a partir de sus elementos orbitales medios.
 - `demo/` y `src/demo/`: la demo antigua (v1). En xpaze.es `/demo/` redirige a `/app/`; la app reutiliza su tripulación y el motor de Mente.
 - `sensors/`: puente Python para los sensores reales en la Raspberry Pi.
@@ -39,7 +38,6 @@ npm test          # 61 tests del motor de análisis y del módulo Mente
 
 - La web no menciona ningún concurso ni organismo.
 - Respeta `prefers-reduced-motion`: sin scroll suave ni animaciones, con todo visible.
-- Si no hay WebGL, se muestra la imagen fija y los pasos del desmontaje como lista.
 
 ## App de la estación (`/app/`, PWA)
 

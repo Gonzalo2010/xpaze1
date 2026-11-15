@@ -13,7 +13,7 @@ XPaze learns what is normal for each astronaut, notices when that changes and ex
 | **Space weather** | Live **NASA DONKI** notifications with environment-specific rules (`src/app/space.js`): solar particles, strong flares, geomagnetic storms and radiation belts. |
 | **Station** | Arduino Uno (`firmware/`) reads an RC522 RFID reader, AHT20 + BMP280 cabin sensors and a MAX3010x pulse oximeter. It sends the data over USB to a Raspberry Pi (`sensors/`), which advertises over Bluetooth LE and serves the app over local Wi-Fi. |
 | **Watch** | Real Galaxy Watch data through Samsung Health → Health Connect → the Android companion app `android/xpaze-link`. |
-| **Website** | Landing page with the 3D station teardown, the live Earth–Mars light delay and the NASA data we use. |
+| **Website** | Landing page with a live ECG from the simulated station v2, its 12 sensors, the live Earth–Mars light delay and the NASA data we use. |
 
 **Simulated:** the crew and the mission environment. Astronaut physiological data is not public, so the demo crew uses published parameters.
 **Next:** a single BLE chip (ESP32) for the station, and trends across weeks.

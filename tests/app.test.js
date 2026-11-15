@@ -82,5 +82,9 @@ test('la estación simulada habla el mismo protocolo', async () => {
   assert.equal(seen.card[0].uid, '04A37F1C');
   assert.ok(seen.vitals.length >= 1);
   assert.ok(['collecting', 'good'].includes(seen.vitals.at(-1).quality));
+  assert.equal(seen.watch.at(-1), null, 'la simulada no usa reloj');
+  assert.ok(seen.ecg.length >= 8 && seen.ecg[0].samples.length === 30, 'ECG a 250 Hz');
+  assert.ok(seen.ext.at(-1).temp > 35, 'sensores ampliados');
+  sim.setWatch(true); // el reloj sigue disponible si se activa
   assert.ok(seen.watch.at(-1).bpm > 0);
 });

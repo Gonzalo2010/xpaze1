@@ -26,7 +26,7 @@ export const SCENARIOS = {
   spe: (b) => ({ ...b, dose: 420, eda: 7, hr: b.hr + 6 }),
 };
 
-export const BASE = { hr: 62, spo2: 98, temp: 36.6, rr: 14, rhythm: 'sinus', qtc: 410, rmssd: 48, eda: 3, grip: 42, sys: 118, dia: 76, co2: 2.1, dose: 18 };
+export const BASE = { hr: 62, spo2: 98, temp: 36.6, rr: 14, rhythm: 'sinus', qtc: 410, rmssd: 48, eda: 3, grip: 42, sys: 118, dia: 76, co2: 2.1, dose: 18, glu: 92 };
 
 /* --------------------------------------------------- análisis de los latidos -- */
 const median = (a) => { const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length ? (s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2) : null; };
@@ -96,7 +96,7 @@ export class SimBody {
   /** Avanza dt segundos los valores hacia el escenario (cambios graduales, como un cuerpo). */
   step(dt) {
     const k = 1 - Math.exp(-dt / 6);
-    for (const p of ['hr', 'spo2', 'temp', 'rr', 'qtc', 'rmssd', 'eda', 'grip', 'sys', 'dia', 'co2', 'dose']) {
+    for (const p of ['hr', 'spo2', 'temp', 'rr', 'qtc', 'rmssd', 'eda', 'grip', 'sys', 'dia', 'co2', 'dose', 'glu']) {
       this.cur[p] += (this.target[p] - this.cur[p]) * (p === 'temp' ? k * 0.4 : k);
     }
     this.mission += (this.cur.dose / 3600) * dt;
@@ -160,6 +160,11 @@ export class SimBody {
     }
     return out;
   }
+
+  /** Manguito automático (oscilométrico): una medida con su ruido. */
+  cuff() { return { sys: Math.round(this.cur.sys + this.gauss() * 3), dia: Math.round(this.cur.dia + this.gauss() * 2) }; }
+  /** Glucómetro conectado (mg/dL). */
+  glucose() { return Math.round((this.cur.glu ?? 92) + this.gauss() * 4); }
 
   /** Último latido (s) y tiempo de tránsito del pulso hasta el dedo (s), para sincronizar la onda del dedo. */
   get lastBeat() { return this.beats.at(-1)?.t ?? 0; }

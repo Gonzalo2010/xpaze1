@@ -129,7 +129,7 @@ export class SimLink extends Emitter {
     this.finger = false;
     this.fingerSince = 0;
     this.card = null;
-    this.watchOn = true;
+    this.watchOn = false; // la estación simulada no usa reloj
     this.bpm = 64;
     this.targetBpm = 64;
     this.spo2 = 98;

@@ -388,8 +388,8 @@ const ACTIONS_ES = {
     2: { low: ['Toma ahora 15–20 g de azúcar rápida; si hay confusión, que te ayude otro tripulante.', 'Repite la medida en 15 minutos y no hagas tareas críticas hasta que suba.'], high: ['Bebe agua, no hagas ejercicio intenso y repite la medida.', 'Avisa al oficial médico.'] },
   },
   mind: {
-    1: { any: ['Habla con la psicóloga de a bordo (IA) o con alguien de confianza de la tripulación.', 'Protege tu próximo periodo de sueño y haz una pausa de respiración.'] },
-    2: { any: ['Habla hoy con el oficial médico: con tan poco sueño no conviene hacer tareas críticas.', 'Pide al comandante revisar la planificación de las próximas horas.'] },
+    1: { any: ['Habla ahora con Paze, tu psicóloga IA: está en el botón «Hablar con Paze» de esta pantalla.', 'Protege tu próximo periodo de sueño y haz una pausa de respiración.'] },
+    2: { any: ['Habla ahora con Paze y, hoy mismo, con el oficial médico: con tan poco sueño no conviene hacer tareas críticas.', 'Pide al comandante revisar la planificación de las próximas horas.'] },
   },
 };
 
@@ -411,14 +411,14 @@ const ACTIONS_EN = {
     2: { low: ['Take 15–20 g of fast-acting sugar now; if you feel confused, have another crew member help you.', 'Measure again in 15 minutes and avoid critical tasks until it rises.'], high: ['Drink water, avoid intense exercise and measure again.', 'Tell the medical officer.'] },
   },
   mind: {
-    1: { any: ['Talk to the on-board psychologist (AI) or to someone you trust in the crew.', 'Protect your next sleep period and take a breathing break.'] },
-    2: { any: ['Talk to the medical officer today: with so little sleep it is best to avoid critical tasks.', 'Ask the commander to review the plan for the next few hours.'] },
+    1: { any: ['Talk to Paze, your AI psychologist, now: use the “Talk to Paze” button on this screen.', 'Protect your next sleep period and take a breathing break.'] },
+    2: { any: ['Talk to Paze now and to the medical officer today: with so little sleep it is best to avoid critical tasks.', 'Ask the commander to review the plan for the next few hours.'] },
   },
 };
 
 // Sensores ampliados de la estación v2 (ECG, temperatura sin contacto, respiración)
 Object.assign(ACTIONS_ES, {
-  hrv: { 1: { any: ['Prioriza dormir esta noche y baja la carga de ejercicio intenso hoy.', 'Haz 5 minutos de respiración lenta (6 respiraciones por minuto).', 'Si sigue baja varios días, habla con el oficial médico y con Paze.'] } },
+  hrv: { 1: { any: ['Prioriza dormir esta noche y baja la carga de ejercicio intenso hoy.', 'Haz 5 minutos de respiración lenta (6 respiraciones por minuto).', 'Habla con Paze sobre cómo estás descansando; si sigue baja varios días, coméntalo con el oficial médico.'] } },
   temp: {
     1: { high: ['Bebe agua, descansa y repite la medida en 1 hora.', 'Usa mascarilla y limita el contacto cercano: en una nave una infección pasa a toda la tripulación.', 'Avisa al oficial médico si sube de 39 °C o aparecen otros síntomas.'], low: ['Abrígate y repite la medida en 15 minutos.', 'Revisa la temperatura de la cabina.'] },
     2: { low: ['Avisa a la tripulación: hay que recalentarte poco a poco.', 'Revisa el soporte vital y la temperatura de la cabina.'] },
@@ -436,7 +436,7 @@ Object.assign(ACTIONS_ES, {
   },
 });
 Object.assign(ACTIONS_EN, {
-  hrv: { 1: { any: ['Prioritise sleep tonight and reduce hard exercise today.', 'Do 5 minutes of slow breathing (6 breaths per minute).', 'If it stays low for several days, talk to the medical officer and to Paze.'] } },
+  hrv: { 1: { any: ['Prioritise sleep tonight and reduce hard exercise today.', 'Do 5 minutes of slow breathing (6 breaths per minute).', 'Talk to Paze about how you are resting; if it stays low for several days, mention it to the medical officer.'] } },
   temp: {
     1: { high: ['Drink water, rest and measure again in 1 hour.', 'Wear a mask and limit close contact: on a spacecraft an infection spreads to the whole crew.', 'Tell the medical officer if it goes above 39 °C or other symptoms appear.'], low: ['Put on warm clothes and measure again in 15 minutes.', 'Check the cabin temperature.'] },
     2: { low: ['Alert the crew: you need to be rewarmed gradually.', 'Check life support and the cabin temperature.'] },

@@ -6,6 +6,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import { marsLight } from './mars.js';
 import { initI18n, t, locale } from './landing/i18n.js';
+import { startHeroMonitor } from './landing/heromonitor.js';
 
 // Idioma primero: los textos que montan los módulos de abajo ya salen traducidos.
 const restoreY = initI18n();
@@ -44,20 +45,12 @@ document.addEventListener('click', (e) => {
 /* -------------------------------------------------------------- hero -- */
 if (!reduced) {
   gsap.from('.hero__title .line > span', { yPercent: 110, duration: 1.2, ease: 'expo.out', stagger: 0.08, delay: 0.15 });
-  gsap.from(['.hero .kicker', '.hero__sub', '.hero__cta', '.hero__readout'], { opacity: 0, y: 20, duration: 1, ease: 'power3.out', stagger: 0.08, delay: 0.55 });
+  gsap.from(['.hero .kicker', '.hero__sub', '.hero__cta', '.hero__monitor'], { opacity: 0, y: 20, duration: 1, ease: 'power3.out', stagger: 0.08, delay: 0.55 });
   gsap.to('.hero__copy', {
     yPercent: -12, opacity: 0.2, ease: 'none',
     scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true },
   });
 }
-// pulso que respira en la lectura de ejemplo
-const pulseEl = $('.hero__readout [data-count]');
-if (pulseEl && !reduced) {
-  const seq = [62, 62, 63, 62, 61, 62, 63, 63, 62];
-  let i = 0;
-  setInterval(() => { pulseEl.textContent = seq[i++ % seq.length]; }, 1100);
-}
-
 /* ------------------------------------------------- aparición genérica -- */
 if (!reduced) {
   $$('.reveal').forEach((el) => {
@@ -406,55 +399,8 @@ import('./landing/spaceweather.js')
 
 if (!reduced) gsap.from('.hero__chips li', { opacity: 0, y: 12, stagger: 0.06, duration: 0.8, ease: 'power3.out', delay: 0.9 });
 
-/* --------------------------------------------- 3D: hero y desmontaje -- */
-const steps8 = $$('.steps li');
-const countEl = $('.teardown__count b');
-let lastStep = -1;
-function showStep(i) {
-  if (i === lastStep) return;
-  lastStep = i;
-  steps8.forEach((li, k) => li.classList.toggle('is-on', k === i));
-  countEl.textContent = i;
-}
-
-function noWebGL() { document.documentElement.classList.add('no-webgl'); ScrollTrigger.refresh(); }
-
-import('./stage.js').then(({ createStage }) => {
-  const stage = createStage($('#station'), { reduced });
-  if (!stage) { noWebGL(); return; }
-  stage.ready.catch(noWebGL);
-  const T = stage.target;
-  const narrow = () => stage.aspect < 0.9;
-  let inHero = true, inTear = false;
-  const sync = () => stage.setVisible((inHero && !narrow()) || inTear);
-  window.addEventListener('resize', sync);
-
-  function heroPose(p) {
-    Object.assign(T, { x: 0.5, y: -0.04 + p * 0.5, scale: 1.02 - p * 0.12, rotY: -0.55 + p * 1.4, rotX: 0.16 + p * 0.1, explode: 0, xray: false });
-  }
-  function tearPose(p) {
-    const e = clamp01(p * 1.12 - 0.04);
-    const step = Math.round(e * 8);
-    showStep(step);
-    const xray = step >= 1 && step <= 4;
-    if (narrow()) Object.assign(T, { x: 0, y: 0.3, scale: 0.6, rotY: -0.7 + e * 0.5, rotX: 0.42, explode: e, xray });
-    else Object.assign(T, { x: 0.3, y: -0.02, scale: 1.18, rotY: -0.75 + e * 0.6, rotX: 0.38, explode: e, xray });
-  }
-
-  heroPose(0);
-  sync();
-  ScrollTrigger.create({
-    trigger: '.hero', start: 'top top', end: 'bottom 35%', scrub: true,
-    onUpdate: (s) => { if (!inTear) heroPose(s.progress); },
-    onToggle: (s) => { inHero = s.isActive; sync(); },
-  });
-  ScrollTrigger.create({
-    trigger: '.teardown', start: 'top top', end: 'bottom bottom',
-    onUpdate: (s) => tearPose(s.progress),
-    onToggle: (s) => { inTear = s.isActive; if (inTear) tearPose(s.progress); sync(); },
-  });
-  ScrollTrigger.refresh();
-}).catch(noWebGL);
+/* ------------------------------------- portada: ECG en directo (estación v2) -- */
+startHeroMonitor($('.hero__monitor'), { reduced });
 
 window.addEventListener('load', () => {
   ScrollTrigger.refresh();
