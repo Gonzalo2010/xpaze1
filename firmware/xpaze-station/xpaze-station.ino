@@ -66,8 +66,12 @@ bool startBmp() {
 
 void setup() {
   Serial.begin(115200);
+  Serial.println(F("# XPaze Station arrancando"));  // el puente ignora las líneas con #
 
   Wire.begin();
+  // Sin módulos (o sin alimentación en ellos) el bus I2C queda a 0 V y Wire esperaría para
+  // siempre: con este límite (25 ms) cada sensor ausente se marca como no disponible y sigue.
+  Wire.setWireTimeout(25000, true);
   // Wire activa las resistencias internas a 5 V en A4/A5. Los módulos ya llevan
   // las suyas a 3,3 V: se desactivan para no subir el bus por encima de 3,3 V.
   digitalWrite(SDA, LOW);
