@@ -55,7 +55,7 @@ const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 4000);
     m.position.set(...pos); m.lookAt(0, 0, 0); env.add(m);
   };
   panel('#ffffff', 14, 30, 16, [30, 36, -34]);   // sol
-  panel('#3f7dff', 5, 90, 40, [0, -46, 10]);     // resplandor de la Tierra
+  panel('#6f9bff', 1.6, 90, 40, [0, -46, 10]);   // resplandor de la Tierra
   panel('#9fd4ff', 3, 16, 30, [-44, 6, 14]);     // relleno frío
   panel('#ffd9a8', 2.2, 12, 12, [20, 4, 44]);    // cálida trasera
   panel('#44d742', 3, 5, 9, [-6, 2, -30]);       // el verde de la pantalla
@@ -73,10 +73,10 @@ sun.shadow.camera.left = -16; sun.shadow.camera.right = 16; sun.shadow.camera.to
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 80;
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
 scene.add(sun);
-const earthGlow = new THREE.DirectionalLight('#4c8dff', 0.9);
+const earthGlow = new THREE.DirectionalLight('#7fa8ff', 0.35);
 earthGlow.position.set(-4, -14, 6);
 scene.add(earthGlow);
-scene.add(new THREE.HemisphereLight('#cfe0ff', '#0a1430', 0.22));
+scene.add(new THREE.HemisphereLight('#eef2ff', '#262a36', 0.75));
 // luz frontal para el desmontaje (la cámara mira la cara que el sol no ilumina)
 const front = new THREE.DirectionalLight('#ffffff', 2.2);
 front.position.set(4, 6, 12);
@@ -145,7 +145,7 @@ const earth = new THREE.Group();
 /* ------------------------------------------------- estación y astronauta -- */
 const station = makeStation(renderer);
 scene.add(station.group);
-const astro = makeAstronaut();
+const astro = makeAstronaut(renderer);
 scene.add(astro.root);
 astro.root.visible = false;
 
@@ -158,13 +158,21 @@ const screenTexts = (phase, v = {}) => ({
 station.setScreen(screenTexts('idle'));
 
 // dónde están los asideros (se mide del modelo real cuando carga)
-const grip = { L: new THREE.Vector3(-1.05, 0.25, 0), R: new THREE.Vector3(1.05, 0.25, 0) };
+const grip = { L: new THREE.Vector3(-0.73, 0.2, 0.37), R: new THREE.Vector3(0.73, 0.2, 0.37), top: 0.74 };
 station.ready.then(() => {
   const c = new THREE.Vector3();
+  // se mide con la estación recta (en el primer acto está girada)
+  const keep = station.group.rotation.clone();
+  station.group.rotation.set(0, 0, 0);
   for (const [k, name] of [['L', 'asidero_izq'], ['R', 'asidero_der']]) {
     const b = station.partBox(name);
-    if (!b.isEmpty()) { b.getCenter(c); grip[k].set(c.x, c.y + (b.max.y - b.min.y) * 0.12, c.z); }
+    if (!b.isEmpty()) { b.getCenter(c); grip[k].set(c.x, c.y, c.z); grip.top = b.max.y; }
   }
+  station.group.rotation.copy(keep);
+  return astro.ready;
+}).then(() => {
+  // el astronauta se coloca de modo que sus palmas descansen sobre los asideros
+  ASTRO_TO.set(0, grip.top - 0.22 - astro.palms.y, grip.R.z - astro.palms.z - 0.15);
   document.body.classList.add('is-ready');
 }).catch(() => document.body.classList.add('no-webgl'));
 
@@ -206,7 +214,7 @@ const mix = (a, b, k) => a + (b - a) * k;
 
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
 const A1 = new THREE.Vector3(), A2 = new THREE.Vector3();
-const ASTRO_FROM = new THREE.Vector3(9, 2.5, 19), ASTRO_TO = new THREE.Vector3(0, -0.75, 4.75);
+const ASTRO_FROM = new THREE.Vector3(10, -6, 26), ASTRO_TO = new THREE.Vector3(0, -9.9, 5.8);
 
 let t0 = performance.now(), last = t0, lastStep = -1, lastPhase = '', slow = 0, shown = 0;
 const cap = $('#caption'), stepN = $('#step'), hud = $('#hud'), verdict = $('#verdict'), fin = $('#fin');
@@ -246,11 +254,10 @@ function frame(now) {
   const reach = ease(span(t, T.grab - 2.6, T.grab));
   astro.root.visible = t > T.enter - 0.05;
   astro.root.position.lerpVectors(ASTRO_FROM, ASTRO_TO, enter);
-  astro.root.position.y += 0.1 * Math.sin(wall * 0.8);
-  astro.root.rotation.set(mix(0.5, -0.2, enter) + 0.012 * Math.sin(wall * 0.6), mix(-1.1, 0, enter), mix(0.35, 0, enter) + 0.01 * Math.sin(wall * 0.5));
+  astro.root.rotation.set(mix(0.35, 0, enter), mix(-1.0, 0, enter), mix(0.3, 0, enter));
   const measuring = t >= T.measure;
   const progress = span(t, T.measure, T.done);
-  astro.update(wall, { reach, targetL: grip.L, targetR: grip.R, glow: measuring ? 1 : 0 });
+  astro.update(wall * (1 - enter) );
 
   // la estación brilla en los sensores mientras mide, y gira muy poco
   const glow = measuring && t < T.done ? 0.5 + 0.5 * Math.sin(wall * 5) : 0;
@@ -264,11 +271,11 @@ function frame(now) {
   const tall = aspect < 0.9 ? 1 : 0;      // y el sujeto sube a la mitad de arriba (abajo va el panel)
   A1.set(Math.sin(wall * 0.12) * 1.0, 0.45, 6.0).multiplyScalar(1 + (far - 1) * 0.9);
   const orbit = span(t, T.grab, T.end);
-  A2.set(mix(13.5, 16.5, ease(orbit)), mix(5.5, 3.6, ease(orbit)), mix(-10.5, -4.5, ease(orbit))).multiplyScalar(far);
+  A2.set(mix(18, 22, ease(orbit)), mix(2.4, 5.2, ease(orbit)), mix(-9, 0.5, ease(orbit))).multiplyScalar(far);
   const move = ease(span(t, T.closed - 0.6, T.grab - 0.6));
   camPos.lerpVectors(A1, A2, move);
   front.intensity = mix(2.2, 0.25, move);
-  camLook.set(0, mix(-0.5 * tall, 1.6 - 5.2 * tall, move), mix(0, 2.6, move));
+  camLook.set(0, mix(-0.5 * tall, 3.6 - 4.0 * tall, move), mix(0, 3.4, move));
   camera.position.copy(camPos);
   camera.lookAt(camLook);
 
