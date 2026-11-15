@@ -427,3 +427,29 @@ body.has-tabs .screen { padding-bottom: calc(96px + env(safe-area-inset-bottom))
 .demo-cap__bar { height: 3px; border-radius: 3px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
 .demo-cap__bar i { display: block; height: 100%; width: 0; background: var(--green); transition: width 0.6s var(--ease); }
 .demo-cap__x { justify-self: end; border: 0; background: transparent; color: rgba(255, 255, 255, 0.65); font-size: 12.5px; text-decoration: underline; padding: 0; }
+
+/* qué ha cambiado */
+.changes { border-radius: 20px; background: var(--card); border: 1px solid var(--line); padding: 14px 16px; display: grid; gap: 10px; }
+.changes__t { font: 500 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.changes ul { display: grid; gap: 10px; }
+.changes li { display: grid; grid-template-columns: 10px 1fr; gap: 10px; align-items: start; font-size: 14.5px; line-height: 1.4; color: var(--ink-2); }
+.changes li .dot { margin-top: 6px; }
+.changes li.lvl-warn { color: var(--ink); }
+
+/* situación simulada en el inicio */
+.scenrow { display: grid; gap: 8px; }
+.scenrow > span { font-size: 13px; color: var(--muted); }
+.seg--scroll { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; justify-content: flex-start; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+.seg--scroll::-webkit-scrollbar { display: none; }
+.seg--scroll button { flex: none; white-space: nowrap; }
+
+/* historial */
+.glance--hist { grid-template-columns: 1fr 1fr; }
+.c-ok { color: var(--green-ink); } .c-warn { color: var(--amber); } .c-err { color: var(--red); }
+.seg--hist { justify-self: start; }
+.htab { display: grid; gap: 10px; }
+.hlist li:has(.hrow) { padding: 0; display: block; }
+.hrow { width: 100%; display: grid; grid-template-columns: 12px 1fr auto; gap: 12px; align-items: center; padding: 14px; background: none; border: 0; text-align: left; font: inherit; color: inherit; }
+.hrow:active { background: var(--paper-2); }
+.blc figcaption span { color: var(--ink-2); }
+.htab[hidden] { display: none; }

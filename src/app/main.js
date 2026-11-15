@@ -5,6 +5,7 @@ import './app.css';
 import { BleLink, SimLink, WifiLink, bluetoothAvailable, wifiAvailable } from './link.js';
 import { MEASURES, ENVIRONMENTS, PHQ2, PHQ2_ANSWERS, RED_FLAGS, SELF_HARM, isSelfHarm, classify, actionPlan, cabinLevel, co2Level } from './clinical.js';
 import { baselineBand, baselineChart, drawEcg } from './charts.js';
+import { seedStory, storyBody, trendInsights, resultsFromEntry, reportText, SEED_VERSION } from './story.js';
 import { streamAI } from './ai.js';
 import { PazeOrb, bindOrbToVoice } from './paze-orb.js';
 import { assessSpace } from './space.js';
@@ -94,12 +95,12 @@ function tabbar() {
 }
 
 function render() {
-  const views = { welcome, choose, connecting, home, live, check, result, history, chat };
+  const views = { welcome, choose, connecting, home, live, check, result, history, entry, chat };
   if (S.pazeOrb && S.screen !== 'chat') { S.pazeOrb.destroy(); S.pazeOrb = null; }
   if (S.homeOrb && S.screen !== 'home') { S.homeOrb.destroy(); S.homeOrb = null; }
   app.replaceChildren();
   app.append(views[S.screen]());
-  const withTabs = S.person && ['home', 'live', 'result', 'history', 'chat'].includes(S.screen);
+  const withTabs = S.person && ['home', 'live', 'result', 'history', 'entry', 'chat'].includes(S.screen);
   document.body.classList.toggle('has-tabs', !!withTabs);
   if (withTabs) app.append(tabbar());
   updateLive();
@@ -211,6 +212,8 @@ function home() {
         <span><b>${L('Hablar con Paze', 'Talk to Paze')}</b><small>${L('Tu psicóloga de a bordo · por voz o por texto', 'Your on-board psychologist · by voice or text')}</small></span>
       </button>
 
+      ${changesCard(p.uid, 3)}
+      ${S.link?.kind === 'sim' ? `<div class="scenrow"><span>${L('Simulación de hoy', 'Today’s simulation')}</span><div class="seg seg--scroll">${SIM_SCENARIOS.map(([k]) => `<button data-sim-prof="${k}" class="${S.link?.scenario === k ? 'is-on' : ''}">${SCEN_NAME(k)}</button>`).join('')}</div><p class="fine" data-live="scen">${SCEN_DESC(S.link?.scenario || 'rest')}</p></div>` : ''}
       <div class="minor">
         <button class="mini" data-act="datos">${icon('sim')}<span>${L('Mis datos en directo', 'My live data')}</span></button>
         <button class="mini" data-act="history">${icon('chart')}<span>${t('tab.history')}</span></button>
@@ -520,16 +523,15 @@ const medicalOf = (uid) => saved.medical[uid] ?? (crewByUid[uid] ? L(...CREW_MED
 
 // Fisiología de cada persona para el cuerpo simulado (de su ficha de tripulación).
 function personBody(p) {
-  const c = p?.crew || {};
-  const h = (p?.uid || 'X').split('').reduce((a, ch) => a + ch.charCodeAt(0), 0);
-  return { hr: c.hr ?? 64, rmssd: c.hrv ?? 45, temp: c.temp ?? 36.6, spo2: Math.round(c.spo2 ?? 98), grip: 34 + (h % 15), sys: 112 + (h % 12), dia: 72 + (h % 7) };
+  return storyBody(crewByUid[p?.uid]?.id || 'default');
 }
 
 function identify(uid, { quiet = false } = {}) {
   const changed = S.person?.uid !== uid;
   S.person = personFromUid(uid);
   if (changed) { S.health = null; S.chat = null; }
-  if (S.link?.kind === 'sim') { S.link.setBody(personBody(S.person)); if (changed) seedHistory(uid); }
+  seedHistory(uid);
+  if (S.link?.kind === 'sim') S.link.setBody(personBody(S.person));
   if (changed) {
     vibrate(40);
     if (!quiet) toast(`${L('Hola', 'Hi')}, ${S.person.name.split(' ')[0]}.`);
@@ -1093,12 +1095,14 @@ function result() {
         <button class="btn btn--dark" data-act="psy">${L('Hablar con Paze', 'Talk to Paze')}</button>
         <button class="btn btn--line" data-act="history">${L('Historial', 'History')}</button>
       </div>
+      <button class="btn btn--line btn--block" data-act="report">${L('Compartir informe con el cirujano de vuelo', 'Share report with the flight surgeon')}</button>
       <button class="btn btn--ghost btn--block" data-act="home">${L('Volver al inicio', 'Back to home')}</button>
       <p class="fine">${L('XPaze no diagnostica. Las cifras de referencia y sus fuentes están en la tabla médica del proyecto.', 'XPaze does not diagnose. Reference values and their sources are in the project’s medical table.')}</p>
     </section>`);
   node.querySelector('[data-act="psy"]').onclick = () => openChat();
   node.querySelector('[data-act="history"]').onclick = () => go('history');
   node.querySelector('[data-act="home"]').onclick = () => go('home');
+  node.querySelector('[data-act="report"]').onclick = () => shareReport(reportText({ person: S.person, entry: S.result.entry, results: S.result.results, plan: S.result.plan, insights: trendInsights(saved.history[S.person?.uid] || []) }) + (S.result.explanation ? `\n\n${L('Explicación (IA)', 'Explanation (AI)')}:\n${S.result.explanation}` : ''));
   wire(node);
   explain(node);
   return node;
@@ -1367,7 +1371,7 @@ function buildContext() {
     ].filter(Boolean).join(', ')),
     live, watch, samsung: healthContext(),
     station: S.ext ? { 'ECG': `${S.ext.rhythm || '—'}${S.ext.ectopics ? `, ${S.ext.ectopics} extrasístoles` : ''}`, 'Pulso ECG': S.ext.ecgHr, 'HRV RMSSD (ms)': S.ext.rmssd, 'QTc (ms)': S.ext.qtc, 'Temperatura corporal': S.ext.temp, 'Respiración (rpm)': S.ext.rr, 'EDA (µS, estrés)': S.ext.eda, 'Agarre (kg)': S.ext.grip, 'CO₂ cabina (mmHg)': S.ext.co2, 'Radiación (µSv/h)': S.ext.dose, 'Situación simulada': S.link?.scenario } : null,
-    insights: buildInsights(),
+    insights: [...buildInsights(), ...trendInsights(saved.history[p?.uid] || []).map((i) => `Tendencia: ${i.text}`)],
     about: saved.about[p?.uid] || '',
     medical: medicalOf(p?.uid),
     facts: saved.facts[p?.uid] || [],
@@ -1581,65 +1585,142 @@ function wireText(node, C, flagCrisis) {
 }
 
 /* -------------------------------------------------------- 6 historial -- */
-// En la estación simulada, si alguien no tiene historial, se rellenan 12 días de ejemplo.
+// Todas las personas simuladas tienen 30 días de historial (src/app/story.js), cada una con su historia.
+// Los chequeos que hace la persona se añaden encima; los simulados se regeneran si cambia la versión.
 function seedHistory(uid) {
-  if (S.link?.kind !== 'sim' || (saved.history[uid] || []).length) return;
-  const base = crewByUid[uid]?.baseline?.hr ?? 64;
-  let s = uid.split('').reduce((a, ch) => a + ch.charCodeAt(0), 7);
-  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-  const day = 86400000;
-  saved.history[uid] = Array.from({ length: 12 }, (_, i) => {
-    const late = i >= 9; // los últimos días, peor sueño y pulso algo más alto
-    const bpm = Math.round(base + (rnd() - 0.5) * 5 + (late ? 6 + i - 9 : 0));
-    const sys = Math.round(116 + (rnd() - 0.5) * 10), dia = Math.round(74 + (rnd() - 0.5) * 8);
-    const mind = { phq2: late ? 2 : Math.round(rnd()), sleep: late ? 5.5 : 6.5 + Math.round(rnd() * 2) / 2, stress: late ? 6 : 3 + Math.round(rnd() * 2) };
-    const levels = [classify('hr', bpm).level, classify('bp', { sys, dia }).level, classify('mind', mind).level];
-    const overall = Math.max(...levels);
-    const b = personBody(personFromUid(uid));
-    const ext = { rmssd: Math.round(b.rmssd * 0.9 * (late ? 0.85 : 1) * (1 + (rnd() - 0.5) * 0.3)), temp: Math.round((b.temp + (rnd() - 0.5) * 0.3) * 10) / 10, resp: 13 + Math.round(rnd() * 3), qtc: 405 + Math.round(rnd() * 15), rhythm: 'sinus', eda: Math.round((2.5 + rnd() * 1.5 + (late ? 1.5 : 0)) * 10) / 10, grip: b.grip + Math.round((rnd() - 0.5) * 3) };
-    return { at: Date.now() - (12 - i) * day, env: envKey(), bpm, spo2: 97 + Math.round(rnd() * 2), bp: { sys, dia }, glucose: Math.round(88 + rnd() * 25), mind, flags: [], overall, status: ['normal', 'watch', 'alert'][overall], sim: true, ...ext };
-  });
+  if (!uid) return;
+  const list = saved.history[uid] || [];
+  if (list.some((e) => e.seed)) return;
+  const story = crewByUid[uid]?.id || 'default';
+  saved.history[uid] = [...seedStory(uid, story, Date.now(), envKey()), ...list].sort((a, b) => a.at - b.at);
   store.save(saved);
 }
+function seedAll() {
+  if (saved.seedV !== SEED_VERSION) {
+    for (const uid of Object.keys(saved.history)) saved.history[uid] = (saved.history[uid] || []).filter((e) => !e.sim);
+    saved.seedV = SEED_VERSION;
+  }
+  PEOPLE.forEach((p) => seedHistory(p.uid));
+}
+
+// Tarjeta «Qué ha cambiado»: tendencias frente a tu normal (reglas fijas, sin IA).
+function changesCard(uid, max = 5) {
+  const ins = trendInsights(saved.history[uid] || []).slice(0, max);
+  if (!ins.length) return '';
+  return `<div class="changes"><p class="changes__t">${L('Qué ha cambiado', 'What has changed')}</p>
+    <ul>${ins.map((i) => `<li class="lvl-${LEVEL_CLS[i.level]}"><span class="dot dot--${LEVEL_CLS[i.level]}"></span><span>${esc(i.text)}</span></li>`).join('')}</ul></div>`;
+}
+
+const HIST_METRICS = () => [
+  [L('Pulso en reposo', 'Resting heart rate'), (h) => h.bpm, L('lpm', 'bpm'), 0],
+  ['HRV · RMSSD', (h) => h.rmssd, 'ms', 0],
+  [L('Sueño', 'Sleep'), (h) => h.mind?.sleep, 'h', 1],
+  [L('Estrés', 'Stress'), (h) => h.mind?.stress, '/10', 0],
+  [L('Temperatura', 'Temperature'), (h) => h.temp, '°C', 1],
+  [L('Tensión sistólica', 'Systolic pressure'), (h) => h.bp?.sys, 'mmHg', 0],
+  [L('Glucosa', 'Glucose'), (h) => h.glucose, 'mg/dL', 0],
+  [L('Fuerza de agarre', 'Grip strength'), (h) => h.grip, 'kg', 0],
+];
 
 function history() {
   const p = S.person;
   seedHistory(p?.uid);
-  const list = (saved.history[p?.uid] || []).slice().reverse();
-  const asc = list.slice().reverse();
-  const charts = [
-    [L('Pulso en reposo (lpm)', 'Resting heart rate (bpm)'), asc.map((h) => h.bpm), p?.crew?.hr],
-    [L('Tensión sistólica (mmHg)', 'Systolic blood pressure (mmHg)'), asc.map((h) => h.bp?.sys ?? null), 120],
-    [L('Horas de sueño', 'Hours of sleep'), asc.map((h) => h.mind?.sleep ?? null), 7],
-    ['HRV · RMSSD (ms)', asc.map((h) => h.rmssd ?? null), null],
-    [L('Temperatura (°C)', 'Temperature (°C)'), asc.map((h) => h.temp ?? null), null],
-    [L('Fuerza de agarre (kg)', 'Grip strength (kg)'), asc.map((h) => h.grip ?? null), null],
-  ].filter(([, v]) => v.filter((x) => x != null).length >= 2);
+  const asc = (saved.history[p?.uid] || []).slice().sort((a, b) => a.at - b.at);
+  const list = asc.slice().reverse();
+  const labels = { normal: L('tu normal', 'your normal'), today: L('último', 'latest') };
+  const counts = [0, 1, 2].map((l) => asc.filter((h) => (h.overall ?? 0) === l).length);
+  const charts = HIST_METRICS().map(([t, get, u, d]) => {
+    const v = asc.map(get);
+    const last = v.at(-1);
+    const svg = last != null ? baselineChart(v.slice(0, -1).slice(-29), last, { labels, unit: u, fmt: (n) => fmt(n, d) }) : '';
+    return svg ? `<figure class="blc"><figcaption><b>${t}</b><span>${fmt(last, d)} ${u}</span></figcaption>${svg}</figure>` : '';
+  }).join('');
   const node = el(`
     <section class="screen hist">
       ${topbar()}
       <p class="kicker">${L('Historial y tendencias', 'History and trends')}</p>
       <h2>${esc(p?.name || '')}</h2>
-      ${charts.map(([t, v, ref]) => `<div class="trend"><small>${t}</small>${spark(v, ref)}</div>`).join('')}
-      <p class="lead">${list.length >= MIN_PERSONAL ? L(`Tu pulso ya se compara con tu propia línea base (${list.length} chequeos).`, `Your heart rate is now compared with your own baseline (${list.length} check-ups).`) : L(`Con ${MIN_PERSONAL} chequeos, XPaze compara tu pulso contigo. Llevas ${list.length}.`, `After ${MIN_PERSONAL} check-ups, XPaze compares your heart rate with you. You have ${list.length}.`)}</p>
-      <ul class="hlist">${list.map((h) => `
-        <li><span class="dot dot--${LEVEL_CLS[h.overall ?? ['normal', 'watch', 'alert'].indexOf(h.status)] || 'off'}"></span>
-          <span><b>${h.bpm ?? '—'} ${L('lpm', 'bpm')}</b>${h.bp ? ` · ${h.bp.sys}/${h.bp.dia}` : ''}${h.glucose ? ` · ${h.glucose} mg/dL` : ''}${h.sim ? ` · <i>${L('simulado', 'simulated')}</i>` : ''}</span>
-          <small>${new Date(h.at).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></li>`).join('') || `<li class="empty">${L('Aún no hay chequeos.', 'No check-ups yet.')}</li>`}</ul>
-      <div class="row">
-        <button class="btn btn--dark" data-act="home">${L('Volver', 'Back')}</button>
-        ${list.length ? `<button class="btn btn--line" data-act="clear">${L('Borrar historial', 'Clear history')}</button>` : ''}
+      <div class="glance glance--hist">
+        <div class="g"><small>${L('Chequeos', 'Check-ups')}</small><b>${asc.length}</b><em>${asc.length ? L(`desde el ${new Date(asc[0].at).toLocaleDateString(locale(), { day: 'numeric', month: 'short' })}`, `since ${new Date(asc[0].at).toLocaleDateString(locale(), { day: 'numeric', month: 'short' })}`) : ''}</em></div>
+        <div class="g"><small>${L('Verde / amarillo / rojo', 'Green / yellow / red')}</small><b><span class="c-ok">${counts[0]}</span> · <span class="c-warn">${counts[1]}</span> · <span class="c-err">${counts[2]}</span></b><em>${L('días', 'days')}</em></div>
       </div>
+      ${changesCard(p?.uid)}
+      <div class="seg seg--hist" role="tablist"><button class="is-on" data-htab="trends">${L('Tendencias', 'Trends')}</button><button data-htab="list">${L('Chequeos', 'Check-ups')}</button></div>
+      <div class="htab" data-htab-panel="trends"><p class="fine">${L('La banda verde es tu normal (de tus chequeos anteriores). El punto grande es el último.', 'The green band is your normal (from your previous check-ups). The big dot is the latest one.')}</p><div class="blcharts">${charts}</div></div>
+      <div class="htab" data-htab-panel="list" hidden>
+        <ul class="hlist">${list.map((h) => `
+        <li><button class="hrow" data-entry="${h.at}"><span class="dot dot--${LEVEL_CLS[h.overall ?? 0] || 'off'}"></span>
+          <span><b>${h.bpm ?? '—'} ${L('lpm', 'bpm')}</b>${h.bp ? ` · ${h.bp.sys}/${h.bp.dia}` : ''}${h.mind ? ` · ${fmt(h.mind.sleep, 1)} h` : ''}${h.rmssd != null ? ` · HRV ${h.rmssd}` : ''}${h.seed ? ` · <i>${L('simulado', 'simulated')}</i>` : ''}</span>
+          <small>${new Date(h.at).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} ›</small></button></li>`).join('') || `<li class="empty">${L('Aún no hay chequeos.', 'No check-ups yet.')}</li>`}</ul>
+      </div>
+      <div class="row">
+        <button class="btn btn--dark" data-act="check">${L('Hacer un chequeo', 'Do a check-up')}</button>
+        <button class="btn btn--line" data-act="report">${L('Compartir informe', 'Share report')}</button>
+      </div>
+      ${list.length ? `<button class="btn btn--ghost btn--block" data-act="clear">${L('Reiniciar historial simulado', 'Reset simulated history')}</button>` : ''}
     </section>`);
-  node.querySelector('[data-act="home"]').onclick = () => go('home');
+  node.querySelectorAll('[data-htab]').forEach((b) => b.addEventListener('click', () => {
+    node.querySelectorAll('[data-htab]').forEach((x) => x.classList.toggle('is-on', x === b));
+    node.querySelectorAll('[data-htab-panel]').forEach((x) => { x.hidden = x.dataset.htabPanel !== b.dataset.htab; });
+  }));
+  node.querySelectorAll('[data-entry]').forEach((b) => b.addEventListener('click', () => { S.entryAt = +b.dataset.entry; go('entry'); }));
+  node.querySelector('[data-act="report"]').onclick = () => { const e = asc.at(-1); if (e) shareReport(entryReport(e)); };
   node.querySelector('[data-act="clear"]')?.addEventListener('click', () => {
-    if (!confirm(L(`¿Borrar los ${list.length} chequeos de ${p.name}? No se puede deshacer.`, `Delete ${p.name}'s ${list.length} check-ups? This cannot be undone.`))) return;
+    if (!confirm(L(`¿Borrar los ${list.length} chequeos de ${p.name} y volver a su historial simulado de 30 días?`, `Delete ${p.name}'s ${list.length} check-ups and go back to their 30-day simulated history?`))) return;
     saved.history[p.uid] = [];
-    store.save(saved);
+    seedHistory(p.uid);
     render();
   });
   wire(node);
   return node;
+}
+
+// Detalle de un chequeo guardado: el semáforo se recalcula con las mismas reglas fijas.
+function entry() {
+  const p = S.person;
+  const asc = (saved.history[p?.uid] || []).slice().sort((a, b) => a.at - b.at);
+  const e = asc.find((x) => x.at === S.entryAt);
+  if (!e) return history();
+  const results = resultsFromEntry(e);
+  const node = el(`
+    <section class="screen result">
+      ${topbar()}
+      <button class="linkish back" data-act="back">← ${L('Historial', 'History')}</button>
+      <p class="kicker">${esc(p?.name || '')} · ${new Date(e.at).toLocaleString(locale(), { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p>
+      <div class="verdict verdict--${LEVEL_CLS[e.overall ?? 0]}"><span></span>${LEVEL_TXT[e.overall ?? 0]}</div>
+      ${e.flags?.length ? `<div class="emergency"><b>${L('Señales de alarma', 'Warning signs')}</b><p>${esc(e.flags.join(', '))}</p></div>` : ''}
+      <ul class="results">${results.map((r) => `
+        <li class="lvl-${LEVEL_CLS[r.level]}"><span class="dot dot--${LEVEL_CLS[r.level]}"></span>
+          <div><b>${esc(r.name)}</b><small>${esc(r.reason)}</small></div><em>${esc(r.display)}</em></li>`).join('')}</ul>
+      ${e.eda != null || e.grip != null ? `<p class="fine">EDA ${fmt(e.eda, 1)} µS · ${L('agarre', 'grip')} ${e.grip ?? '—'} kg${e.seed ? ` · ${L('chequeo simulado', 'simulated check-up')}` : ''}</p>` : ''}
+      <div class="row">
+        <button class="btn btn--dark" data-act="report">${L('Compartir informe', 'Share report')}</button>
+        <button class="btn btn--line" data-act="psy">${L('Hablar con Paze', 'Talk to Paze')}</button>
+      </div>
+    </section>`);
+  node.querySelector('[data-act="back"]').onclick = () => go('history');
+  node.querySelector('[data-act="report"]').onclick = () => shareReport(entryReport(e));
+  node.querySelector('[data-act="psy"]').onclick = () => openChat();
+  wire(node);
+  return node;
+}
+
+function entryReport(e) {
+  const results = resultsFromEntry(e);
+  return reportText({ person: S.person, entry: e, results, plan: actionPlan(results, e.env || envKey()), insights: trendInsights(saved.history[S.person?.uid] || []) });
+}
+
+// Comparte el informe (menú del sistema en el móvil) o lo copia; si no se puede, lo descarga.
+async function shareReport(text) {
+  try {
+    if (navigator.share) { await navigator.share({ title: L('Informe XPaze', 'XPaze report'), text }); return; }
+  } catch (e) { if (e?.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(text); toast(L('Informe copiado: pégalo en el mensaje al cirujano de vuelo.', 'Report copied: paste it into the message to the flight surgeon.')); return; } catch { /* sin portapapeles */ }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  a.download = `xpaze-${new Date().toISOString().slice(0, 10)}.txt`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
 function spark(raw, ref) {
@@ -1772,4 +1853,5 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('/app/sw.js', { scope: '/app/' }).catch(() => {});
 }
 
+seedAll();
 render();
